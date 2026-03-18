@@ -2,32 +2,34 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, master, develop]
+    branches: [main, develop]
     paths:
-      - '**.tf'
-      - 'environments/**'
-      - 'modules/**'
-      - 'actions/**'
-      - 'README.md'
-      - '.github/workflows/**'
+      - "**.tf"
+      - "environments/**"
+      - "modules/**"
+      - "actions/**"
+      - ".github/workflows/**"
   push:
-    branches: [main, master, develop]
+    branches: [main, develop]
     paths:
-      - '**.tf'
-      - 'environments/**'
-      - 'modules/**'
-      - 'actions/**'
-      - 'README.md'
-      - '.github/workflows/**'
+      - "**.tf"
+      - "environments/**"
+      - "modules/**"
+      - "actions/**"
+      - ".github/workflows/**"
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
-  build-and-test:
-    name: Build, test, lint, and validate
+  build-actions:
+    name: Build & Test Actions
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,57 +37,72 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: actions/package-lock.json
 
-      - name: Install dependencies and build actions
+      - name: Install dependencies
         working-directory: actions
-        run: |
-          npm ci
-          npm run build
+        run: npm ci --ignore-scripts
+
+      - name: Build
+        working-directory: actions
+        run: npm run build
 
       - name: Run unit tests
         working-directory: actions
-        run: |
-          npm test
+        run: npm test
 
       - name: Run ESLint
         working-directory: actions
-        run: |
-          npm run lint
+        run: npm run lint
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: '1.13.3'
-
-      - name: Check Terraform formatting
-        run: |
-          for env in dev prod; do
-            echo "Checking format for environments/$env"
-            cd environments/$env
-            terraform fmt -check -recursive -diff
-            cd ../../
-          done
-
-      - name: Validate Terraform configurations
-        run: |
-          for env in dev prod; do
-            echo "Validating environments/$env"
-            cd environments/$env
-            terraform init -backend=false -input=false -no-color
-            terraform validate -no-color
-            cd ../../
-          done
-
-      - name: Security scan with Checkov
-        run: |
-          python -m pip install --upgrade pip
-          pip install checkov
-          checkov -d environments/ --framework terraform --soft-fail
-
-      - name: Save build artifact for actions
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: actions-dist
           path: actions/dist
+          retention-days: 7
+
+  terraform-validate:
+    name: "Terraform Validate (${{ matrix.environment }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, prod]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.13.3"
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive -diff
+        working-directory: environments/${{ matrix.environment }}
+
+      - name: Validate configuration
+        run: |
+          terraform init -backend=false -input=false -no-color
+          terraform validate -no-color
+        working-directory: environments/${{ matrix.environment }}
+
+  security-scan:
+    name: Security Scan (Checkov)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: environments/
+          framework: terraform
+          output_format: cli
+          soft_fail: false
