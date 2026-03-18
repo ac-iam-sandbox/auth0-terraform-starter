@@ -1,6 +1,6 @@
-# Auth0 Terraform + Azure DevOps: Enterprise Setup Guide
+# Auth0 Terraform + GitHub Actions: Enterprise Setup Guide
 
-This guide provides end-to-end setup for Auth0 infrastructure as code with Terraform, S3-native state locking, unified CI/CD pipeline, and Azure DevOps with enterprise best practices.
+This guide provides end-to-end setup for Auth0 infrastructure as code with Terraform, Azure backend locking, unified CI/CD pipeline, and GitHub Actions with enterprise best practices.
 
 ---
 
@@ -9,18 +9,34 @@ This guide provides end-to-end setup for Auth0 infrastructure as code with Terra
 * Terraform ≥ 1.13.3 (required for S3-native locking)
 * Node.js 20+
 * AWS CLI configured
-* Auth0 Management API credentials for each environment (dev, qa, val, prod)
-* Azure DevOps org with Pipelines and Environments
-* GitHub repository connected to Azure DevOps
+* Auth0 Management API credentials for each environment (dev, prod)
+* GitHub repository with Actions enabled
+
+### Required GitHub Secrets (enterprise ready)
+
+Store these as repository secrets or per-environment secrets:
+
+- `AZURE_CLIENT_ID`
+- `AZURE_CLIENT_SECRET`
+- `AZURE_TENANT_ID`
+- `AZURE_SUBSCRIPTION_ID`
+
+Per environment (for terraform backend and Auth0 variables):
+- `ARM_RESOURCE_GROUP_DEV`, `ARM_STORAGE_ACCOUNT_DEV`, `ARM_CONTAINER_NAME_DEV`
+- `AUTH0_DOMAIN_DEV`, `AUTH0_CLIENT_ID_DEV`, `AUTH0_CLIENT_SECRET_DEV`
+- `ARM_RESOURCE_GROUP_PROD`, `ARM_STORAGE_ACCOUNT_PROD`, `ARM_CONTAINER_NAME_PROD`
+- `AUTH0_DOMAIN_PROD`, `AUTH0_CLIENT_ID_PROD`, `AUTH0_CLIENT_SECRET_PROD`
+
+Then configure protected GitHub environments: `dev`, `prod` and require reviewers as needed for prod.
 
 ---
 
 ## Architecture Overview
 
 **Pipeline Strategy:**
-- **Unified Pipeline** (`azure-pipelines.yml`): Single pipeline with CI stages (always run) and CD stages (master branch only)
-- **GitHub Flow**: Feature branches → PR (CI only) → master (CI + CD automatically)
-- **Artifact Reuse**: CD stages use artifacts built during CI stage (no rebuild)
+- **GitHub Actions workflows**: CI in `.github/workflows/ci.yml`; deploy in `.github/workflows/terraform-deploy.yml`
+- **GitHub Flow**: Feature branches → PR (CI only) → main (CI + parameterized plan/apply)
+- **Artifact Reuse**: reuse built artifacts for action packaging in plan/apply flows
 
 **Pipeline Flow:**
 ```
@@ -28,16 +44,14 @@ Pull Request:
   → CI Stages: Build → SecurityScan → Validate → PlanPreview → Summary
   → No deployment
   
-Merge to master:
+Merge to main:
   → CI Stages: Build → SecurityScan → Validate → Summary
-  → CD Stages: DeployDev → DeployQA → DeployProd
+  → CD Stages: DeployDev → DeployProd
   → All CD stages reuse artifacts from Build stage
 ```
 
 **Environments:**
 - **DEV** (`na-dev-cic`): Auto-deploy, rapid iteration
-- **QA** (`na-qa-cic`): Optional approval, automated testing
-- **VAL** (`na-val-cic`): Required approval (1 technical lead)
 - **PROD** (`na-prod-cic`): Strict approvals (2 reviewers), separated init/plan/apply steps
 
 ---
@@ -50,7 +64,7 @@ Create **separate S3 buckets per environment**. Enable **versioning** and **encr
 
 ```bash
 # Create buckets for each environment
-for env in dev qa val prod; do
+for env in dev prod; do
   aws s3api create-bucket \
     --bucket "terraform-state-cic-${env}" \
     --region us-east-1
@@ -96,7 +110,7 @@ terraform {
 }
 ```
 
-Repeat for **qa**, **val**, and **prod** with respective bucket names.
+Repeat for **prod** with respective bucket names.
 
 ### 1.3 IAM Permissions
 
@@ -153,8 +167,6 @@ Based on pattern `na-dev-cic`:
 | Environment | Tenant Domain |
 |-------------|--------------|
 | DEV | `na-dev-cic.us.auth0.com` |
-| QA | `na-qa-cic.us.auth0.com` |
-| VAL | `na-val-cic.us.auth0.com` |
 | PROD | `na-cic.us.auth0.com` |
 
 ### 2.3 Environment Variable Files
@@ -205,7 +217,7 @@ app_callbacks = https://dev-app.yourcompany.com/callback,https://dev-app.yourcom
 ENVIRONMENT_NAME = na-dev-cic
 ```
 
-Repeat for **na-qa-cic**, **na-val-cic**, and **na-prod-cic** with respective values.
+Repeat for **na-prod-cic** with respective values.
 
 **Note:** AWS credentials are stored in variable groups (not service connections). Consider migrating to Azure Key Vault for enhanced security.
 
@@ -214,8 +226,6 @@ Repeat for **na-qa-cic**, **na-val-cic**, and **na-prod-cic** with respective va
 Create Azure DevOps **Environments**:
 
 * `na-dev-cic` - No approval (auto-deploy)
-* `na-qa-cic` - Optional approval
-* `na-val-cic` - Required: 1 technical lead approver
 * `na-prod-cic` - **Required: 2 approvers (tech lead + ops), business hours enforcement**
 
 For `na-prod-cic`, configure:
@@ -226,7 +236,7 @@ For `na-prod-cic`, configure:
 
 ### 3.3 GitHub Branch Protection
 
-In GitHub: **Settings → Branches → Add rule** for `master`:
+In GitHub: **Settings → Branches → Add rule** for `main`:
 
 ```
 ☑ Require a pull request before merging

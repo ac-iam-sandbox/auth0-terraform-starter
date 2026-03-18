@@ -1,0 +1,151 @@
+name: Terraform Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target deployment environment.'
+        required: true
+        type: choice
+        options: [dev, prod]
+        default: dev
+      action:
+        description: 'Run plan (create tfplan) or apply (execute tfplan).'
+        required: true
+        type: choice
+        options: [plan, apply]
+        default: plan
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    outputs:
+      tfplan-path: ${{ steps.plan.outputs.tfplan-path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: '1.13.3'
+
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          allow-no-subscriptions: true
+
+      - name: Configure per-environment variables
+        run: |
+          env_name=${{ github.event.inputs.environment }}
+          echo "Environment=$env_name"
+          if [ "$env_name" = "dev" ]; then
+            echo "ARM_RESOURCE_GROUP=${{ secrets.ARM_RESOURCE_GROUP_DEV }}" >> $GITHUB_ENV
+            echo "ARM_STORAGE_ACCOUNT=${{ secrets.ARM_STORAGE_ACCOUNT_DEV }}" >> $GITHUB_ENV
+            echo "ARM_CONTAINER_NAME=${{ secrets.ARM_CONTAINER_NAME_DEV }}" >> $GITHUB_ENV
+            echo "AUTH0_DOMAIN=${{ secrets.AUTH0_DOMAIN_DEV }}" >> $GITHUB_ENV
+            echo "AUTH0_CLIENT_ID=${{ secrets.AUTH0_CLIENT_ID_DEV }}" >> $GITHUB_ENV
+            echo "AUTH0_CLIENT_SECRET=${{ secrets.AUTH0_CLIENT_SECRET_DEV }}" >> $GITHUB_ENV
+          else
+            echo "ARM_RESOURCE_GROUP=${{ secrets.ARM_RESOURCE_GROUP_PROD }}" >> $GITHUB_ENV
+            echo "ARM_STORAGE_ACCOUNT=${{ secrets.ARM_STORAGE_ACCOUNT_PROD }}" >> $GITHUB_ENV
+            echo "ARM_CONTAINER_NAME=${{ secrets.ARM_CONTAINER_NAME_PROD }}" >> $GITHUB_ENV
+            echo "AUTH0_DOMAIN=${{ secrets.AUTH0_DOMAIN_PROD }}" >> $GITHUB_ENV
+            echo "AUTH0_CLIENT_ID=${{ secrets.AUTH0_CLIENT_ID_PROD }}" >> $GITHUB_ENV
+            echo "AUTH0_CLIENT_SECRET=${{ secrets.AUTH0_CLIENT_SECRET_PROD }}" >> $GITHUB_ENV
+          fi
+
+      - name: Configure backend + generate plan
+        id: plan
+        run: |
+          cd environments/${{ github.event.inputs.environment }}
+          terraform init \
+            -backend-config="resource_group_name=${ARM_RESOURCE_GROUP}" \
+            -backend-config="storage_account_name=${ARM_STORAGE_ACCOUNT}" \
+            -backend-config="container_name=${ARM_CONTAINER_NAME}" \
+            -backend-config="use_azuread_auth=true" \
+            -backend-config="use_oidc=true" \
+            -backend-config="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -input=false -no-color
+
+          terraform plan \
+            -input=false \
+            -no-color \
+            -out=tfplan \
+            -var "auth0_domain=${AUTH0_DOMAIN}" \
+            -var "auth0_client_id=${AUTH0_CLIENT_ID}" \
+            -var "auth0_client_secret=${AUTH0_CLIENT_SECRET}"
+
+          echo "tfplan-path=$(pwd)/tfplan" >> $GITHUB_OUTPUT
+
+      - name: Upload tfplan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ github.event.inputs.environment }}
+          path: environments/${{ github.event.inputs.environment }}/tfplan
+
+  apply:
+    name: Terraform Apply
+    if: ${{ github.event.inputs.action == 'apply' }}
+    runs-on: ubuntu-latest
+    needs: plan
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: '1.13.3'
+
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          allow-no-subscriptions: true
+
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ github.event.inputs.environment }}
+          path: environments/${{ github.event.inputs.environment }}
+
+      - name: Apply approved plan
+        run: |
+          env_name=${{ github.event.inputs.environment }}
+          if [ "$env_name" = "dev" ]; then
+            export ARM_RESOURCE_GROUP=${{ secrets.ARM_RESOURCE_GROUP_DEV }}
+            export ARM_STORAGE_ACCOUNT=${{ secrets.ARM_STORAGE_ACCOUNT_DEV }}
+            export ARM_CONTAINER_NAME=${{ secrets.ARM_CONTAINER_NAME_DEV }}
+          else
+            export ARM_RESOURCE_GROUP=${{ secrets.ARM_RESOURCE_GROUP_PROD }}
+            export ARM_STORAGE_ACCOUNT=${{ secrets.ARM_STORAGE_ACCOUNT_PROD }}
+            export ARM_CONTAINER_NAME=${{ secrets.ARM_CONTAINER_NAME_PROD }}
+          fi
+
+          cd environments/${{ github.event.inputs.environment }}
+          terraform init \
+            -backend-config="resource_group_name=${ARM_RESOURCE_GROUP}" \
+            -backend-config="storage_account_name=${ARM_STORAGE_ACCOUNT}" \
+            -backend-config="container_name=${ARM_CONTAINER_NAME}" \
+            -backend-config="use_azuread_auth=true" \
+            -backend-config="use_oidc=true" \
+            -backend-config="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -input=false -no-color
+
+          terraform apply -input=false -auto-approve tfplan
