@@ -1,0 +1,227 @@
+name: Terraform Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**.tf"
+      - "environments/**"
+      - "modules/**"
+      - "actions/**"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options: [dev, prod]
+        default: dev
+      action:
+        description: "Plan (preview) or Apply (execute)"
+        required: true
+        type: choice
+        options: [plan, apply]
+        default: plan
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  config:
+    name: Resolve Configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      environment: ${{ steps.resolve.outputs.environment }}
+      action: ${{ steps.resolve.outputs.action }}
+    steps:
+      - name: Determine environment and action
+        id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "environment=dev"   >> "$GITHUB_OUTPUT"
+            echo "action=apply"      >> "$GITHUB_OUTPUT"
+            echo "::notice::Push to main — auto-deploying to DEV"
+          else
+            echo "environment=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
+            echo "action=${{ inputs.action }}"           >> "$GITHUB_OUTPUT"
+            echo "::notice::Manual dispatch — ${{ inputs.action }} on ${{ inputs.environment }}"
+          fi
+
+  plan:
+    name: "Terraform Plan (${{ needs.config.outputs.environment }})"
+    needs: config
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: terraform-${{ needs.config.outputs.environment }}
+      cancel-in-progress: false
+    env:
+      TF_ENV: ${{ needs.config.outputs.environment }}
+    outputs:
+      has-changes: ${{ steps.plan.outputs.has-changes }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.13.3"
+          terraform_wrapper: false
+
+      - name: Authenticate to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Configure environment variables
+        run: |
+          if [ "$TF_ENV" = "prod" ]; then
+            cat >> "$GITHUB_ENV" <<'EOF'
+          ARM_RESOURCE_GROUP=${{ secrets.ARM_RESOURCE_GROUP_PROD }}
+          ARM_STORAGE_ACCOUNT=${{ secrets.ARM_STORAGE_ACCOUNT_PROD }}
+          ARM_CONTAINER_NAME=${{ secrets.ARM_CONTAINER_NAME_PROD }}
+          TF_VAR_auth0_domain=${{ secrets.AUTH0_DOMAIN_PROD }}
+          TF_VAR_auth0_client_id=${{ secrets.AUTH0_CLIENT_ID_PROD }}
+          TF_VAR_auth0_client_secret=${{ secrets.AUTH0_CLIENT_SECRET_PROD }}
+          EOF
+          else
+            cat >> "$GITHUB_ENV" <<'EOF'
+          ARM_RESOURCE_GROUP=${{ secrets.ARM_RESOURCE_GROUP_DEV }}
+          ARM_STORAGE_ACCOUNT=${{ secrets.ARM_STORAGE_ACCOUNT_DEV }}
+          ARM_CONTAINER_NAME=${{ secrets.ARM_CONTAINER_NAME_DEV }}
+          TF_VAR_auth0_domain=${{ secrets.AUTH0_DOMAIN_DEV }}
+          TF_VAR_auth0_client_id=${{ secrets.AUTH0_CLIENT_ID_DEV }}
+          TF_VAR_auth0_client_secret=${{ secrets.AUTH0_CLIENT_SECRET_DEV }}
+          EOF
+          fi
+
+      - name: Terraform Init
+        working-directory: environments/${{ env.TF_ENV }}
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${ARM_RESOURCE_GROUP}" \
+            -backend-config="storage_account_name=${ARM_STORAGE_ACCOUNT}" \
+            -backend-config="container_name=${ARM_CONTAINER_NAME}" \
+            -backend-config="use_azuread_auth=true" \
+            -backend-config="use_oidc=true" \
+            -backend-config="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -input=false \
+            -no-color
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: environments/${{ env.TF_ENV }}
+        run: |
+          set +e
+          terraform plan \
+            -input=false \
+            -no-color \
+            -detailed-exitcode \
+            -out=tfplan \
+            2>&1 | tee plan-output.txt
+          EXIT_CODE=$?
+          set -e
+
+          if [ $EXIT_CODE -eq 1 ]; then
+            echo "::error::Terraform plan failed"
+            exit 1
+          elif [ $EXIT_CODE -eq 2 ]; then
+            echo "has-changes=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Plan detected infrastructure changes"
+          else
+            echo "has-changes=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No infrastructure changes detected"
+          fi
+
+      - name: Upload plan artifact
+        if: steps.plan.outputs.has-changes == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ env.TF_ENV }}-${{ github.run_id }}
+          path: |
+            environments/${{ env.TF_ENV }}/tfplan
+            environments/${{ env.TF_ENV }}/plan-output.txt
+          retention-days: 5
+
+  apply:
+    name: "Terraform Apply (${{ needs.config.outputs.environment }})"
+    needs: [config, plan]
+    if: |
+      needs.config.outputs.action == 'apply'
+      && needs.plan.outputs.has-changes == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency:
+      group: terraform-${{ needs.config.outputs.environment }}
+      cancel-in-progress: false
+    environment: ${{ needs.config.outputs.environment }}
+    env:
+      TF_ENV: ${{ needs.config.outputs.environment }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.13.3"
+          terraform_wrapper: false
+
+      - name: Authenticate to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Configure environment variables
+        run: |
+          if [ "$TF_ENV" = "prod" ]; then
+            cat >> "$GITHUB_ENV" <<'EOF'
+          ARM_RESOURCE_GROUP=${{ secrets.ARM_RESOURCE_GROUP_PROD }}
+          ARM_STORAGE_ACCOUNT=${{ secrets.ARM_STORAGE_ACCOUNT_PROD }}
+          ARM_CONTAINER_NAME=${{ secrets.ARM_CONTAINER_NAME_PROD }}
+          TF_VAR_auth0_domain=${{ secrets.AUTH0_DOMAIN_PROD }}
+          TF_VAR_auth0_client_id=${{ secrets.AUTH0_CLIENT_ID_PROD }}
+          TF_VAR_auth0_client_secret=${{ secrets.AUTH0_CLIENT_SECRET_PROD }}
+          EOF
+          else
+            cat >> "$GITHUB_ENV" <<'EOF'
+          ARM_RESOURCE_GROUP=${{ secrets.ARM_RESOURCE_GROUP_DEV }}
+          ARM_STORAGE_ACCOUNT=${{ secrets.ARM_STORAGE_ACCOUNT_DEV }}
+          ARM_CONTAINER_NAME=${{ secrets.ARM_CONTAINER_NAME_DEV }}
+          TF_VAR_auth0_domain=${{ secrets.AUTH0_DOMAIN_DEV }}
+          TF_VAR_auth0_client_id=${{ secrets.AUTH0_CLIENT_ID_DEV }}
+          TF_VAR_auth0_client_secret=${{ secrets.AUTH0_CLIENT_SECRET_DEV }}
+          EOF
+          fi
+
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ env.TF_ENV }}-${{ github.run_id }}
+          path: environments/${{ env.TF_ENV }}
+
+      - name: Terraform Init
+        working-directory: environments/${{ env.TF_ENV }}
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${ARM_RESOURCE_GROUP}" \
+            -backend-config="storage_account_name=${ARM_STORAGE_ACCOUNT}" \
+            -backend-config="container_name=${ARM_CONTAINER_NAME}" \
+            -backend-config="use_azuread_auth=true" \
+            -backend-config="use_oidc=true" \
+            -backend-config="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -input=false \
+            -no-color
+
+      - name: Terraform Apply
+        working-directory: environments/${{ env.TF_ENV }}
+        run: terraform apply -input=false -auto-approve tfplan
