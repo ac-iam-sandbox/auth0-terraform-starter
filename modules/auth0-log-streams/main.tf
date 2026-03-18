@@ -20,7 +20,7 @@ resource "auth0_log_stream" "eventbridge" {
   # PII Configuration - only when enabled AND fields are specified
   dynamic "pii_config" {
     for_each = var.enable_pii_masking && length(var.pii_log_fields) > 0 ? [1] : []
-    
+
     content {
       log_fields = var.pii_log_fields
       method     = var.pii_method

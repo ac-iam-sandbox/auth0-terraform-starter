@@ -1,16 +1,14 @@
 # ========================================
 # Terraform Backend Configuration (QA)
 # ========================================
-# Update bucket name and KMS key before use
+# Azure Backend with Environment Variables
+# The following will be provided via -backend-config flags from variable groups:
+# - resource_group_name
+# - storage_account_name
+# - container_name
 
 terraform {
-  backend "s3" {
-    bucket  = "auth0-terraform-state"
-    key     = "auth0/dev/terraform.tfstate"
-    region  = "us-east-1"
-    encrypt = true
-
-    # S3-native state locking (Terraform 1.11.0+), replaces DynamoDB table
-    use_lockfile = true
+  backend "azurerm" {
+    key = "auth0/qa/terraform.tfstate"
   }
 }

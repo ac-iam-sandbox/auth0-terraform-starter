@@ -44,7 +44,6 @@ terraform.rc
 # Node
 node_modules/
 pnpm-lock.yaml
-package-lock.json
 yarn.lock
 
 # Actions build output

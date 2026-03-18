@@ -6,7 +6,7 @@ variable "universal_login_experience" {
   type        = string
   description = "Universal Login experience version (new or classic)"
   default     = "new"
-  
+
   validation {
     condition     = contains(["new", "classic"], var.universal_login_experience)
     error_message = "Must be either 'new' or 'classic'"

@@ -30,15 +30,15 @@ Pull Request:
   
 Merge to master:
   → CI Stages: Build → SecurityScan → Validate → Summary
-  → CD Stages: DeployDev → DeployQA → DeployVal → DeployProd
+  → CD Stages: DeployDev → DeployQA → DeployProd
   → All CD stages reuse artifacts from Build stage
 ```
 
 **Environments:**
-- **DEV** (`na-dev-axon-cic`): Auto-deploy, rapid iteration
-- **QA** (`na-qa-axon-cic`): Optional approval, automated testing
-- **VAL** (`na-val-axon-cic`): Required approval (1 technical lead)
-- **PROD** (`na-prod-axon-cic`): Strict approvals (2 reviewers), separated init/plan/apply steps
+- **DEV** (`na-dev-cic`): Auto-deploy, rapid iteration
+- **QA** (`na-qa-cic`): Optional approval, automated testing
+- **VAL** (`na-val-cic`): Required approval (1 technical lead)
+- **PROD** (`na-prod-cic`): Strict approvals (2 reviewers), separated init/plan/apply steps
 
 ---
 
@@ -52,17 +52,17 @@ Create **separate S3 buckets per environment**. Enable **versioning** and **encr
 # Create buckets for each environment
 for env in dev qa val prod; do
   aws s3api create-bucket \
-    --bucket "terraform-state-axon-cic-${env}" \
+    --bucket "terraform-state-cic-${env}" \
     --region us-east-1
   
   # Enable versioning (required for S3-native locking)
   aws s3api put-bucket-versioning \
-    --bucket "terraform-state-axon-cic-${env}" \
+    --bucket "terraform-state-cic-${env}" \
     --versioning-configuration Status=Enabled
   
   # Enable encryption
   aws s3api put-bucket-encryption \
-    --bucket "terraform-state-axon-cic-${env}" \
+    --bucket "terraform-state-cic-${env}" \
     --server-side-encryption-configuration '{
       "Rules": [{
         "ApplyServerSideEncryptionByDefault": {
@@ -73,7 +73,7 @@ for env in dev qa val prod; do
   
   # Block public access
   aws s3api put-public-access-block \
-    --bucket "terraform-state-axon-cic-${env}" \
+    --bucket "terraform-state-cic-${env}" \
     --public-access-block-configuration \
       "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
 done
@@ -87,7 +87,7 @@ Update backend configuration in each environment directory:
 ```hcl
 terraform {
   backend "s3" {
-    bucket       = "terraform-state-axon-cic-dev"
+    bucket       = "terraform-state-cic-dev"
     key          = "terraform.tfstate"
     region       = "us-east-1"
     encrypt      = true
@@ -117,8 +117,8 @@ Ensure AWS credentials have these permissions for their respective environment b
         "s3:GetBucketEncryption"
       ],
       "Resource": [
-        "arn:aws:s3:::terraform-state-axon-cic-*",
-        "arn:aws:s3:::terraform-state-axon-cic-*/*"
+        "arn:aws:s3:::terraform-state-cic-*",
+        "arn:aws:s3:::terraform-state-cic-*/*"
       ]
     }
   ]
@@ -148,14 +148,14 @@ For each environment:
 
 ### 2.2 Tenant Naming Convention
 
-Based on pattern `na-dev-axon-cic`:
+Based on pattern `na-dev-cic`:
 
 | Environment | Tenant Domain |
 |-------------|--------------|
-| DEV | `na-dev-axon-cic.us.auth0.com` |
-| QA | `na-qa-axon-cic.us.auth0.com` |
-| VAL | `na-val-axon-cic.us.auth0.com` |
-| PROD | `na-axon-cic.us.auth0.com` |
+| DEV | `na-dev-cic.us.auth0.com` |
+| QA | `na-qa-cic.us.auth0.com` |
+| VAL | `na-val-cic.us.auth0.com` |
+| PROD | `na-cic.us.auth0.com` |
 
 ### 2.3 Environment Variable Files
 
@@ -186,26 +186,26 @@ Ensure `*.tfvars` and `*.tfvars.json` are `.gitignore`d.
 
 Create in **Pipelines → Library**.
 
-**terraform-common-axon-cic** (Shared):
+**terraform-common-cic** (Shared):
 ```
 TF_VERSION = 1.13.3
 NODE_VERSION = 20.x
 ```
 
-**na-dev-axon-cic**:
+**na-dev-cic**:
 ```
-AUTH0_DOMAIN = na-dev-axon-cic.us.auth0.com
+AUTH0_DOMAIN = na-dev-cic.us.auth0.com
 AUTH0_CLIENT_ID = <dev_client_id>             # mark as secret
 AUTH0_CLIENT_SECRET = <dev_client_secret>     # mark as secret
 AWS_ACCESS_KEY_ID = <aws_access_key>          # mark as secret
 AWS_SECRET_ACCESS_KEY = <aws_secret_key>      # mark as secret
 AWS_DEFAULT_REGION = us-east-1
-TF_STATE_BUCKET = terraform-state-axon-cic-dev
+TF_STATE_BUCKET = terraform-state-cic-dev
 app_callbacks = https://dev-app.yourcompany.com/callback,https://dev-app.yourcompany.com/silent-callback
-ENVIRONMENT_NAME = na-dev-axon-cic
+ENVIRONMENT_NAME = na-dev-cic
 ```
 
-Repeat for **na-qa-axon-cic**, **na-val-axon-cic**, and **na-prod-axon-cic** with respective values.
+Repeat for **na-qa-cic**, **na-val-cic**, and **na-prod-cic** with respective values.
 
 **Note:** AWS credentials are stored in variable groups (not service connections). Consider migrating to Azure Key Vault for enhanced security.
 
@@ -213,12 +213,12 @@ Repeat for **na-qa-axon-cic**, **na-val-axon-cic**, and **na-prod-axon-cic** wit
 
 Create Azure DevOps **Environments**:
 
-* `na-dev-axon-cic` - No approval (auto-deploy)
-* `na-qa-axon-cic` - Optional approval
-* `na-val-axon-cic` - Required: 1 technical lead approver
-* `na-prod-axon-cic` - **Required: 2 approvers (tech lead + ops), business hours enforcement**
+* `na-dev-cic` - No approval (auto-deploy)
+* `na-qa-cic` - Optional approval
+* `na-val-cic` - Required: 1 technical lead approver
+* `na-prod-cic` - **Required: 2 approvers (tech lead + ops), business hours enforcement**
 
-For `na-prod-axon-cic`, configure:
+For `na-prod-cic`, configure:
 - Approvals and checks → Add Approval
 - Minimum 2 approvers
 - Timeout: 7 days
@@ -262,7 +262,7 @@ In GitHub: **Settings → Branches → Add rule** for `master`:
 7. Click **Continue**
 8. Review the YAML
 9. Click **Save** (or **Run** to test immediately)
-10. Rename pipeline to: `axon-cic-unified` or `Auth0 CI/CD Pipeline`
+10. Rename pipeline to: `cic-unified` or `Auth0 CI/CD Pipeline`
 
 **Pipeline permissions:**
 - Go to the pipeline → **⋮** → **Settings** → **Triggers**
@@ -283,7 +283,7 @@ terraform version
 ### 4.2 Export Credentials (DEV)
 
 ```bash
-export AUTH0_DOMAIN="na-dev-axon-cic.us.auth0.com"
+export AUTH0_DOMAIN="na-dev-cic.us.auth0.com"
 export AUTH0_CLIENT_ID="your_dev_client_id"
 export AUTH0_CLIENT_SECRET="your_dev_client_secret"
 export AWS_ACCESS_KEY_ID="your_dev_aws_key"
@@ -305,7 +305,7 @@ npm test
 ```bash
 cd ../environments/dev
 terraform init \
-  -backend-config="bucket=terraform-state-axon-cic-dev" \
+  -backend-config="bucket=terraform-state-cic-dev" \
   -backend-config="key=terraform.tfstate" \
   -backend-config="region=us-east-1" \
   -backend-config="use_lockfile=true" \
@@ -497,7 +497,7 @@ git checkout <last-good-commit>
 
 # Apply to PROD manually
 cd environments/prod
-export AUTH0_DOMAIN="na-axon-cic.us.auth0.com"
+export AUTH0_DOMAIN="na-cic.us.auth0.com"
 export AUTH0_CLIENT_ID="..."
 export AUTH0_CLIENT_SECRET="..."
 export AWS_ACCESS_KEY_ID="..."
@@ -552,10 +552,10 @@ ls -la dist/
 Confirm no concurrent runs, then inspect S3 for `.tflock`:
 
 ```bash
-aws s3 ls s3://terraform-state-axon-cic-dev/terraform.tfstate.tflock
+aws s3 ls s3://terraform-state-cic-dev/terraform.tfstate.tflock
 
 # If stale (confirmed no active runs):
-aws s3 rm s3://terraform-state-axon-cic-dev/terraform.tfstate.tflock
+aws s3 rm s3://terraform-state-cic-dev/terraform.tfstate.tflock
 ```
 
 ### AWS credentials error in pipeline
@@ -573,7 +573,7 @@ aws s3 rm s3://terraform-state-axon-cic-dev/terraform.tfstate.tflock
 
 ```bash
 aws s3api put-bucket-versioning \
-  --bucket terraform-state-axon-cic-prod \
+  --bucket terraform-state-cic-prod \
   --versioning-configuration Status=Enabled
 ```
 
