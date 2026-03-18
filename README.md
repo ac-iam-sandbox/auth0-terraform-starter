@@ -8,7 +8,7 @@ This guide provides end-to-end setup for Auth0 infrastructure as code with Terra
 
 * Terraform ≥ 1.13.3 (required for S3-native locking)
 * Node.js 20+
-* AWS CLI configured
+* Azure CLI configured
 * Auth0 Management API credentials for each environment (dev, prod)
 * GitHub repository with Actions enabled
 
@@ -56,42 +56,12 @@ Merge to main:
 
 ---
 
-## Phase 1 — AWS S3 Backend Setup (One-Time)
+## Phase 1 — Azure Backend Setup (One-Time)
 
-### 1.1 Create S3 Buckets
+### 1.1 Create Azure Storage + RM backend
 
-Create **separate S3 buckets per environment**. Enable **versioning** and **encryption** for each.
-
-```bash
-# Create buckets for each environment
-for env in dev prod; do
-  aws s3api create-bucket \
-    --bucket "terraform-state-cic-${env}" \
-    --region us-east-1
-  
-  # Enable versioning (required for S3-native locking)
-  aws s3api put-bucket-versioning \
-    --bucket "terraform-state-cic-${env}" \
-    --versioning-configuration Status=Enabled
-  
-  # Enable encryption
-  aws s3api put-bucket-encryption \
-    --bucket "terraform-state-cic-${env}" \
-    --server-side-encryption-configuration '{
-      "Rules": [{
-        "ApplyServerSideEncryptionByDefault": {
-          "SSEAlgorithm": "AES256"
-        }
-      }]
-    }'
-  
-  # Block public access
-  aws s3api put-public-access-block \
-    --bucket "terraform-state-cic-${env}" \
-    --public-access-block-configuration \
-      "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
-done
-```
+For enterprise, create one storage account and container per environment (dev/prod) or one shared container with separate keys.
+Enable soft-delete and immutable policies on state storage.
 
 ### 1.2 Backend Configuration
 
@@ -100,46 +70,28 @@ Update backend configuration in each environment directory:
 **`environments/dev/backend.tf`:**
 ```hcl
 terraform {
-  backend "s3" {
-    bucket       = "terraform-state-cic-dev"
-    key          = "terraform.tfstate"
-    region       = "us-east-1"
-    encrypt      = true
-    use_lockfile = true
+  backend "azurerm" {
+    key = "auth0/dev/terraform.tfstate"
   }
 }
 ```
 
-Repeat for **prod** with respective bucket names.
-
-### 1.3 IAM Permissions
-
-Ensure AWS credentials have these permissions for their respective environment buckets:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:DeleteObject",
-        "s3:ListBucket",
-        "s3:GetBucketVersioning",
-        "s3:GetBucketEncryption"
-      ],
-      "Resource": [
-        "arn:aws:s3:::terraform-state-cic-*",
-        "arn:aws:s3:::terraform-state-cic-*/*"
-      ]
-    }
-  ]
+**`environments/prod/backend.tf`:**
+```hcl
+terraform {
+  backend "azurerm" {
+    key = "auth0/prod/terraform.tfstate"
+  }
 }
 ```
 
-**Best Practice:** Use separate AWS IAM users or roles per environment for production isolation.
+> ✅ Enterprise key guideline: use hierarchical key paths that include application + environment + a consistent filename. Your key `auth0/dev/terraform.tfstate` is good and recommended.
+
+### 1.3 Azure RBAC + service principal
+
+Grant the CI service principal or managed identity contributor access to the storage account (and optionally blob data contributor) for each environment.
+
+**Best Practice:** keep separate resource groups/storage accounts for dev/prod or use strict role scoping.
 
 ---
 
@@ -209,17 +161,15 @@ NODE_VERSION = 20.x
 AUTH0_DOMAIN = na-dev-cic.us.auth0.com
 AUTH0_CLIENT_ID = <dev_client_id>             # mark as secret
 AUTH0_CLIENT_SECRET = <dev_client_secret>     # mark as secret
-AWS_ACCESS_KEY_ID = <aws_access_key>          # mark as secret
-AWS_SECRET_ACCESS_KEY = <aws_secret_key>      # mark as secret
-AWS_DEFAULT_REGION = us-east-1
-TF_STATE_BUCKET = terraform-state-cic-dev
-app_callbacks = https://dev-app.yourcompany.com/callback,https://dev-app.yourcompany.com/silent-callback
+ARM_RESOURCE_GROUP = <dev-rg>
+ARM_STORAGE_ACCOUNT = <devstorage>
+ARM_CONTAINER_NAME = <dev-state-container>
 ENVIRONMENT_NAME = na-dev-cic
 ```
 
 Repeat for **na-prod-cic** with respective values.
 
-**Note:** AWS credentials are stored in variable groups (not service connections). Consider migrating to Azure Key Vault for enhanced security.
+**Note:** Azure credentials are stored in variable groups or Key Vault; prefer Azure Key Vault for enhanced security.
 
 ### 3.2 Environments and Approvals
 
@@ -296,9 +246,13 @@ terraform version
 export AUTH0_DOMAIN="na-dev-cic.us.auth0.com"
 export AUTH0_CLIENT_ID="your_dev_client_id"
 export AUTH0_CLIENT_SECRET="your_dev_client_secret"
-export AWS_ACCESS_KEY_ID="your_dev_aws_key"
-export AWS_SECRET_ACCESS_KEY="your_dev_aws_secret"
-export AWS_DEFAULT_REGION="us-east-1"
+export AZURE_CLIENT_ID="your_azure_sp_client_id"
+export AZURE_CLIENT_SECRET="your_azure_sp_client_secret"
+export AZURE_TENANT_ID="your_azure_tenant_id"
+export AZURE_SUBSCRIPTION_ID="your_azure_subscription_id"
+export ARM_RESOURCE_GROUP="your_dev_rg"
+export ARM_STORAGE_ACCOUNT="your_dev_storage_account"
+export ARM_CONTAINER_NAME="your_dev_state_container"
 ```
 
 ### 4.3 Build and Test Actions
@@ -559,30 +513,28 @@ ls -la dist/
 
 ### State locked / cannot acquire lock
 
-Confirm no concurrent runs, then inspect S3 for `.tflock`:
+Confirm no concurrent runs and verify backend storage locks in Azure blob container.
 
 ```bash
-aws s3 ls s3://terraform-state-cic-dev/terraform.tfstate.tflock
-
-# If stale (confirmed no active runs):
-aws s3 rm s3://terraform-state-cic-dev/terraform.tfstate.tflock
+az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET --tenant $AZURE_TENANT_ID
+az storage blob list --account-name $ARM_STORAGE_ACCOUNT --container-name $ARM_CONTAINER_NAME --prefix "terraform.tfstate"
 ```
 
-### AWS credentials error in pipeline
+### Azure credentials error in pipeline
 
-* Verify variable group has `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` marked as secret
-* Test credentials locally:
+* Verify GitHub secrets contain `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`
+* Test locally:
   ```bash
-  aws sts get-caller-identity
+  az login --service-principal -u "$AZURE_CLIENT_ID" -p "$AZURE_CLIENT_SECRET" --tenant "$AZURE_TENANT_ID"
+  az account show --query id -o tsv
   ```
-* Check IAM policy has required S3 permissions
-* Verify `TF_STATE_BUCKET` variable matches actual bucket name
-* Ensure pipeline has permission to use variable group
+* Check RBAC assignment to storage account (Storage Blob Data Contributor or Contributor)
+* Ensure pipeline has permissions to read/write backend container and run Terraform
 
-### Versioning not enabled
+### Storage account versioning / soft delete
 
-```bash
-aws s3api put-bucket-versioning \
+Use Azure Storage soft-delete and immutability for strong enterprise protection.
+
   --bucket terraform-state-cic-prod \
   --versioning-configuration Status=Enabled
 ```
