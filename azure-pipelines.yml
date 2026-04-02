@@ -31,13 +31,15 @@ variables:
     value: '0.78.4'
   - name: TF_IN_AUTOMATION
     value: '1'
+  - name: CONFTEST_VERSION
+    value: '0.56.0'
 
 stages:
   # ========================================
-  # Stage 1: Build TypeScript Actions
+  # Stage 1: Build TypeScript Actions + Modules
   # ========================================
   - stage: Build
-    displayName: Build Actions
+    displayName: Build Actions & Modules
     jobs:
       - job: BuildActions
         displayName: Build and Test Actions
@@ -48,25 +50,47 @@ stages:
               versionSpec: $(NODE_VERSION)
 
           - task: Cache@2
-            displayName: Cache npm dependencies
+            displayName: Cache npm (actions)
             inputs:
-              key: npm | "$(Agent.OS)" | actions/package-lock.json
+              key: npm-actions | "$(Agent.OS)" | actions/package-lock.json
               path: actions/node_modules
               restoreKeys: |
-                npm | "$(Agent.OS)"
+                npm-actions | "$(Agent.OS)"
+
+          - task: Cache@2
+            displayName: Cache npm (action-modules)
+            inputs:
+              key: npm-modules | "$(Agent.OS)" | action-modules/package-lock.json
+              path: action-modules/node_modules
+              restoreKeys: |
+                npm-modules | "$(Agent.OS)"
 
           - script: |
               set -euo pipefail
               cd actions
               npm ci
               npm run build
-            displayName: Install and Build Actions
+            displayName: Build Actions
 
           - script: |
               set -euo pipefail
               cd actions
               npm test
-            displayName: Run Unit Tests
+            displayName: Test Actions
+
+          - script: |
+              set -euo pipefail
+              if [ -f action-modules/package.json ]; then
+                cd action-modules
+                npm ci
+                if ls src/*.ts 1>/dev/null 2>&1; then
+                  npm run build
+                  npm test
+                else
+                  echo "No action module source files yet — skipping"
+                fi
+              fi
+            displayName: Build & Test Action Modules
 
           - script: |
               set -euo pipefail
@@ -79,19 +103,17 @@ stages:
             displayName: Publish Test Results
             inputs:
               testResultsFormat: JUnit
-              testResultsFiles: actions/test-results/*.xml
+              testResultsFiles: |
+                actions/test-results/*.xml
+                action-modules/test-results/*.xml
               failTaskOnFailedTests: true
             condition: succeededOrFailed()
 
-          - publish: actions/dist
-            artifact: actions-dist
-            displayName: Publish Actions Artifact
-
   # ========================================
-  # Stage 2: Security and Quality Checks
+  # Stage 2: Security, Quality, and Schema Checks
   # ========================================
   - stage: SecurityScan
-    displayName: Security and Quality
+    displayName: Security & Quality
     dependsOn: Build
     jobs:
       - job: SecurityChecks
@@ -122,8 +144,8 @@ stages:
               failTaskOnFailedTests: false
             condition: succeededOrFailed()
 
-      - job: LintCheck
-        displayName: Linting and Formatting
+      - job: LintAndValidate
+        displayName: Lint, Format, and Schema Validation
         steps:
           - task: TerraformInstaller@1
             displayName: Install Terraform
@@ -145,11 +167,31 @@ stages:
               cd actions
               npm ci
               npm run lint || echo "ESLint warnings found (non-blocking)"
-            displayName: ESLint Check
+            displayName: ESLint Check (Actions)
             continueOnError: true
 
+          - script: |
+              set -euo pipefail
+              if [ -f action-modules/package.json ]; then
+                cd action-modules
+                npm ci
+                npm run lint || echo "ESLint warnings found (non-blocking)"
+              fi
+            displayName: ESLint Check (Action Modules)
+            continueOnError: true
+
+          - script: |
+              set -euo pipefail
+              node scripts/validate-schemas.mjs
+            displayName: Validate JSON Schemas
+
+          - script: |
+              set -euo pipefail
+              node scripts/verify-manifests.mjs
+            displayName: Verify Promotion Manifests
+
   # ========================================
-  # Stage 3: Terraform Validation
+  # Stage 3: Terraform Validation + OPA Policy
   # ========================================
   - stage: Validate
     displayName: Terraform Validation
@@ -173,6 +215,18 @@ stages:
                 cd ../..
               done
             displayName: Validate All Modules
+
+          - script: |
+              set -euo pipefail
+              CONFTEST_URL="https://github.com/open-policy-agent/conftest/releases/download/v$(CONFTEST_VERSION)/conftest_$(CONFTEST_VERSION)_Linux_x86_64.tar.gz"
+              curl -sL "$CONFTEST_URL" | tar xz -C /usr/local/bin conftest
+              conftest --version
+            displayName: Install Conftest
+
+          - script: |
+              echo "Conftest installed — OPA policies will run against plan output in deploy stages."
+              echo "To test locally: conftest test tfplan.json --policy ./policies/"
+            displayName: OPA Policy Check (info)
 
   # ========================================
   # Stage 4: Plan Preview (PR only)

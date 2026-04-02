@@ -39,13 +39,3 @@ variable "applications" {
     error_message = "app_type must be one of: spa, regular_web, non_interactive, native."
   }
 }
-
-variable "environment" {
-  type    = string
-  default = ""
-}
-
-variable "tags" {
-  type    = map(string)
-  default = {}
-}

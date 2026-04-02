@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Auth0 Applications Configuration",
+  "type": "object",
+  "additionalProperties": {
+    "type": "object",
+    "required": ["name", "app_type"],
+    "properties": {
+      "name": { "type": "string", "minLength": 1 },
+      "app_type": { "type": "string", "enum": ["spa", "regular_web", "non_interactive", "native"] },
+      "description": { "type": "string" },
+      "callbacks": { "type": "array", "items": { "type": "string", "format": "uri" } },
+      "allowed_logout_urls": { "type": "array", "items": { "type": "string", "format": "uri" } },
+      "web_origins": { "type": "array", "items": { "type": "string", "format": "uri" } },
+      "allowed_origins": { "type": "array", "items": { "type": "string", "format": "uri" } },
+      "jwt_lifetime_seconds": { "type": "number", "minimum": 1 },
+      "refresh_token": {
+        "type": "object",
+        "properties": {
+          "rotation_type": { "type": "string", "enum": ["rotating", "non-rotating"] },
+          "expiration_type": { "type": "string", "enum": ["expiring", "non-expiring"] },
+          "token_lifetime": { "type": "number", "minimum": 1 },
+          "idle_token_lifetime": { "type": "number", "minimum": 1 }
+        }
+      }
+    }
+  }
+}

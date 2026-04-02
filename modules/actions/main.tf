@@ -1,5 +1,5 @@
 # =============================================================================
-# Auth0 actions - data-driven via for_each
+# Auth0 Actions - data-driven via for_each
 # =============================================================================
 # Creates actions from a map, automatically groups them by trigger, and
 # creates deterministic trigger bindings.

@@ -2,7 +2,8 @@
 # OPA Policy: Auth0 Terraform Guardrails
 # =============================================================================
 # Usage: conftest test tfplan.json --policy ./policies/
-# Scoped to resources this repo manages: applications, actions, forms, flows
+# Scoped to resources this repo manages: applications, actions, action modules,
+# forms, flows, vault connections
 # =============================================================================
 
 package terraform.auth0
@@ -48,4 +49,12 @@ warn contains msg if {
   rc.type == "auth0_action"
   rc.change.after.deploy == false
   msg := sprintf("Action '%s' is not set to deploy automatically", [rc.change.after.name])
+}
+
+# Warn on action modules not set to publish
+warn contains msg if {
+  some rc in input.resource_changes
+  rc.type == "auth0_action_module"
+  rc.change.after.publish == false
+  msg := sprintf("Action Module '%s' is not set to publish", [rc.change.after.name])
 }

@@ -35,17 +35,21 @@ backend.tf
 *.decrypted.json
 
 # =============================================================================
-# Node.js (action TypeScript source)
+# Node.js (action + action-module TypeScript source)
 # =============================================================================
 node_modules/
 actions/dist/
+action-modules/dist/
 *.tsbuildinfo
 test-results/
 coverage/
 
 # NOTE: environments/*/actions/*.js ARE committed (per-env compiled JS)
+# NOTE: environments/*/action-modules/*.js ARE committed (per-env compiled JS)
+# NOTE: environments/*/actions/manifest.json ARE committed (promotion tracking)
+# NOTE: environments/*/action-modules/manifest.json ARE committed (promotion tracking)
 # NOTE: environments/*/forms/*.json ARE committed (per-env exported forms)
-# Only actions/dist/ (transient CI build output) is gitignored.
+# Only actions/dist/ and action-modules/dist/ (transient CI build output) are gitignored.
 
 # =============================================================================
 # Pipeline artifacts

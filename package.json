@@ -1,0 +1,42 @@
+{
+  "name": "auth0-terraform-starter",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare": "husky",
+    "promote": "node scripts/promote.mjs",
+    "verify:manifests": "node scripts/verify-manifests.mjs",
+    "verify:schemas": "node scripts/validate-schemas.mjs",
+    "verify": "npm run verify:schemas && npm run verify:manifests",
+    "build:actions": "cd actions && npm run build",
+    "build:modules": "cd action-modules && npm run build",
+    "build": "npm run build:actions && npm run build:modules",
+    "test:actions": "cd actions && npm test",
+    "test:modules": "cd action-modules && npm test",
+    "test": "npm run test:actions && npm run test:modules",
+    "lint:actions": "cd actions && npm run lint",
+    "lint:modules": "cd action-modules && npm run lint",
+    "lint": "npm run lint:actions && npm run lint:modules",
+    "fmt:tf": "terraform fmt -recursive modules/",
+    "fmt:check": "terraform fmt -check -recursive -diff modules/"
+  },
+  "devDependencies": {
+    "husky": "^9.1.0",
+    "lint-staged": "^15.2.0"
+  },
+  "lint-staged": {
+    "modules/**/*.tf": [
+      "terraform fmt -write=true"
+    ],
+    "actions/src/**/*.ts": [
+      "bash -c 'cd actions && npx eslint --fix'"
+    ],
+    "action-modules/src/**/*.ts": [
+      "bash -c 'cd action-modules && npx eslint --fix'"
+    ],
+    "environments/**/*.json": [
+      "node scripts/validate-schemas.mjs"
+    ]
+  }
+}

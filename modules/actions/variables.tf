@@ -21,13 +21,3 @@ variable "actions" {
   }))
   default = {}
 }
-
-variable "environment" {
-  type    = string
-  default = ""
-}
-
-variable "tags" {
-  type    = map(string)
-  default = {}
-}

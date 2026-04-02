@@ -1,11 +1,8 @@
 # =============================================================================
 # Template: Deploy Environment (Terragrunt)
 # =============================================================================
-# Reusable plan -> approve -> apply template.
+# Reusable plan -> OPA check -> approve -> apply template.
 # Approvals are configured on Azure DevOps Environments, not here.
-#
-# Actions JS and form/flow JSON are committed per-environment in git,
-# so no CI build artifacts need to be downloaded.
 # =============================================================================
 
 parameters:
@@ -23,7 +20,7 @@ parameters:
 
 jobs:
   # ========================================
-  # Job 1: Plan
+  # Job 1: Plan + OPA Policy Check
   # ========================================
   - deployment: Plan${{ parameters.environmentName }}
     displayName: Plan ${{ parameters.environmentName }}
@@ -48,6 +45,12 @@ jobs:
                 chmod +x /usr/local/bin/terragrunt
                 terragrunt --version
               displayName: Install Terragrunt
+
+            - script: |
+                set -euo pipefail
+                CONFTEST_URL="https://github.com/open-policy-agent/conftest/releases/download/v$(CONFTEST_VERSION)/conftest_$(CONFTEST_VERSION)_Linux_x86_64.tar.gz"
+                curl -sL "$CONFTEST_URL" | tar xz -C /usr/local/bin conftest
+              displayName: Install Conftest
 
             - script: |
                 set -euo pipefail
@@ -77,6 +80,35 @@ jobs:
                 ARM_STORAGE_ACCOUNT: $(ARM_STORAGE_ACCOUNT)
                 ARM_CONTAINER_NAME: $(ARM_CONTAINER_NAME)
 
+            - script: |
+                set -euo pipefail
+                cd environments/${{ parameters.environment }}
+
+                echo "Running OPA policy checks..."
+                POLICY_FAILURES=0
+
+                # Run conftest against each unit's plan
+                for unit_dir in $(find . -name tfplan -type f -exec dirname {} \;); do
+                  echo "  Checking: $unit_dir"
+                  cd "$unit_dir"
+                  if terraform show -json tfplan > tfplan.json 2>/dev/null; then
+                    conftest test tfplan.json --policy "$(Build.Repository.LocalPath)/policies/" --no-color || POLICY_FAILURES=$((POLICY_FAILURES + 1))
+                  fi
+                  cd "$(Build.Repository.LocalPath)/environments/${{ parameters.environment }}"
+                done
+
+                if [ $POLICY_FAILURES -gt 0 ]; then
+                  echo "WARNING: $POLICY_FAILURES unit(s) had OPA policy violations"
+                fi
+              displayName: OPA Policy Check
+              continueOnError: true
+              env:
+                AUTH0_DOMAIN: $(AUTH0_DOMAIN)
+                AUTH0_CLIENT_ID: $(AUTH0_CLIENT_ID)
+                AUTH0_CLIENT_SECRET: $(AUTH0_CLIENT_SECRET)
+                ARM_TENANT_ID: $(ARM_TENANT_ID)
+                ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+
             - publish: $(Build.ArtifactStagingDirectory)
               artifact: ${{ parameters.environment }}-plan
               displayName: Publish ${{ parameters.environmentName }} Plan
@@ -98,7 +130,7 @@ jobs:
             ${{ parameters.environmentName }} Deployment Approval
 
             1. Download the ${{ parameters.environment }}-plan artifact
-            2. Review planned changes
+            2. Review planned changes and OPA policy results
             3. Click Resume to proceed
 
             Artifacts: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts

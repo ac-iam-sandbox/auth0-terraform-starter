@@ -9,6 +9,7 @@ Enterprise Auth0 tenant management using Terraform modules orchestrated by Terra
 | Applications (clients) | ✅ CRUD | — |
 | Client credentials | ✅ CRUD | — |
 | Actions (post-login, etc.) | ✅ Create/Read/Update | — |
+| Action Modules (shared code) | ✅ Create/Read/Update | — |
 | Trigger bindings | ✅ Read/Update | — |
 | Forms | ✅ Create/Read/Update | — |
 | Flows | ✅ Create/Read/Update | — |
@@ -27,54 +28,171 @@ Enterprise Auth0 tenant management using Terraform modules orchestrated by Terra
 ## Architecture
 
 ```
-actions/                              ← TypeScript SOURCE (single copy, dev workspace)
+actions/                              ← TypeScript SOURCE for Auth0 Actions
   ├── src/*.ts                        ← Write action code here
   ├── src/__tests__/*.test.ts         ← Unit tests
-  └── dist/                           ← CI build output (gitignored, transient)
+  └── dist/                           ← CI build output (gitignored)
+
+action-modules/                       ← TypeScript SOURCE for Auth0 Action Modules
+  ├── src/*.ts                        ← Write shared module code here
+  ├── src/__tests__/*.test.ts         ← Unit tests
+  └── dist/                           ← CI build output (gitignored)
 
 environments/{dev,qa,val,prod}/
   ├── applications.json               ← Which apps exist in this env
   ├── actions.json                    ← Action metadata (name, trigger, secrets)
   ├── actions/*.js                    ← Compiled JS for THIS env (committed)
+  ├── actions/manifest.json           ← Promotion tracking (SHA, git commit, who, when)
+  ├── action-modules.json             ← Module metadata (name, publish, deps)
+  ├── action-modules/*.js             ← Compiled JS for THIS env (committed)
+  ├── action-modules/manifest.json    ← Promotion tracking
   ├── vault-connections.json          ← Vault connection config
-  ├── flows.json                      ← Flow metadata + file paths
-  ├── forms.json                      ← Form metadata + file paths
+  ├── flows.json                      ← Flow metadata + file paths + token_replacements
+  ├── forms.json                      ← Form metadata + file paths + token_replacements
   ├── forms/*.form.json               ← Tokenized form exports
   ├── forms/*.flow-*.json             ← Tokenized flow exports
+  ├── i18n/{form-name}/{locale}.json  ← Per-form translations (flat key-value)
   ├── env.hcl                         ← Environment identity
-  └── terragrunt.stack.hcl           ← Stack definition
+  └── terragrunt.stack.hcl           ← Symlink → ../../stack.hcl
+
+stack.hcl                             ← Shared stack definition (all envs use this)
 
 modules/                              ← Terraform modules
   ├── applications/                   ← auth0_client + auth0_client_credentials
   ├── actions/                        ← auth0_action + auth0_trigger_actions
-  ├── forms/                          ← auth0_form
-  ├── flows/                          ← auth0_flow
+  ├── action-modules/                 ← auth0_action_module
+  ├── forms/                          ← auth0_form (with token replacement)
+  ├── flows/                          ← auth0_flow (with token replacement)
   └── vault-connections/              ← auth0_flow_vault_connection
 
 catalog/units/                        ← Terragrunt catalog (DRY unit definitions)
+schemas/                              ← JSON Schema validation for env config files
 scripts/
-  ├── promote-actions.sh              ← Copy compiled JS to target env
+  ├── promote.mjs                     ← Promote compiled JS to target env (with manifest)
+  ├── verify-manifests.mjs            ← Verify manifest SHA integrity
+  ├── validate-schemas.mjs            ← Validate env JSON against schemas
   └── tokenize-export.sh             ← Convert Dashboard export to tokenized JSON
 ```
 
 ---
 
+## Getting Started
+
+### Prerequisites
+
+```bash
+# Install tools (or use .tool-versions with asdf)
+terraform version   # >= 1.13.3
+terragrunt version  # >= 0.78.4
+node --version      # >= 20.x
+
+# Install repo dependencies
+npm install                       # root (husky, lint-staged)
+cd actions && npm install         # action dependencies
+cd ../action-modules && npm install  # module dependencies
+```
+
+### Developer Workflow
+
+Pre-commit hooks (via Husky) automatically run:
+- `terraform fmt` on `.tf` files
+- ESLint on `.ts` files
+- JSON schema validation on env config files
+
+Pre-push hooks run the full test suite, `terraform validate`, and manifest integrity checks.
+
+---
+
 ## How Actions Work
 
-### The lifecycle of action code
+### The Promote CLI
+
+Actions and modules use an explicit promotion model. Code is written once in TypeScript, compiled, then selectively promoted to each environment.
+
+```bash
+# Promote a single action to dev
+npm run promote -- --env dev --action post-login-action
+
+# Promote multiple actions to qa
+npm run promote -- --env qa --action post-login-action --action enforce-mfa
+
+# Promote everything to dev
+npm run promote -- --env dev --all
+
+# Promote a shared module
+npm run promote -- --env dev --module shared-utils
+
+# Dry run (see what would change without writing files)
+npm run promote -- --env prod --all --dry-run
+```
+
+### What `promote` does
+
+1. Builds the TypeScript source (if `dist/` is missing or stale)
+2. Computes SHA256 of the compiled JS file
+3. Copies the file to `environments/{env}/actions/{name}.js`
+4. Updates `environments/{env}/actions/manifest.json`:
+
+```json
+{
+  "post-login-action": {
+    "source_file": "post-login-action.ts",
+    "compiled_file": "post-login-action.js",
+    "sha256": "a1b2c3d4e5f6...",
+    "git_sha": "abc1234def5678...",
+    "promoted_at": "2026-04-02T14:30:00Z",
+    "promoted_by": "john.doe"
+  }
+}
+```
+
+5. You commit both the `.js` file and the manifest — git provides the version history.
+
+### Selective Promotion
+
+The key benefit: you can update actions 1 and 2 in TypeScript but only promote action 2 to QA:
+
+```bash
+# Both actions updated in source
+vim actions/src/action-1.ts
+vim actions/src/action-2.ts
+cd actions && npm test && npm run build
+
+# Only promote action-2 to qa
+npm run promote -- --env qa --action action-2
+
+# Commit — only qa/actions/action-2.js and qa manifest changed
+git add environments/qa/actions/
+git commit -m "promote: action-2 to qa from abc1234"
+```
+
+### Manifest Integrity
+
+CI and pre-push hooks verify that every `.js` file's SHA256 matches its manifest entry. If someone manually edits a `.js` file without running `promote`, the build fails:
+
+```bash
+# Run manually
+npm run verify:manifests
+
+# Or verify a single env
+node scripts/verify-manifests.mjs --env dev
+```
+
+### Full Action Lifecycle
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │                                                                      │
 │  actions/src/post-login-action.ts    ← You write code HERE           │
 │            │                                                         │
-│            │  npm run build                                          │
+│            │  npm run build (or auto via promote)                    │
 │            ▼                                                         │
 │  actions/dist/post-login-action.js   ← Transient build (gitignored)  │
 │            │                                                         │
-│            │  ./scripts/promote-actions.sh dev                       │
+│            │  npm run promote -- --env dev --action post-login-action│
 │            ▼                                                         │
 │  environments/dev/actions/post-login-action.js   ← COMMITTED to git  │
+│  environments/dev/actions/manifest.json          ← SHA + git commit  │
 │                                                                      │
 │  environments/qa/actions/post-login-action.js    ← DIFFERENT copy    │
 │  environments/prod/actions/post-login-action.js  ← DIFFERENT copy    │
@@ -82,124 +200,45 @@ scripts/
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-**Key principle**: `actions/src/` is the development workspace. `environments/{env}/actions/` is what each Auth0 tenant actually runs. They are independent copies. Promoting is an explicit, deliberate action.
+---
 
-### Example: verify-email action exists in all environments
+## How Action Modules Work
 
-```
-actions/src/verify-email.ts                    ← latest source (v3)
-environments/dev/actions/verify-email.js       ← compiled from v3
-environments/qa/actions/verify-email.js        ← compiled from v2
-environments/val/actions/verify-email.js       ← compiled from v1
-environments/prod/actions/verify-email.js      ← compiled from v1
-```
-
-All four environments have `verify-email.js`, but each is a snapshot from a different point in time. Dev got v3 last week. QA got v2 two weeks ago. Val and prod are still on v1 from the initial release.
-
-### Workflow: Develop and test a change in dev
+Action Modules are reusable code packages shared across multiple actions. They follow the exact same TypeScript → build → promote workflow as actions, but live in a separate directory.
 
 ```bash
-# 1. Edit the TypeScript source
-vim actions/src/verify-email.ts
+# Write module code
+vim action-modules/src/shared-utils.ts
 
-# 2. Run tests
-cd actions && npm test
+# Test and build
+cd action-modules && npm test && npm run build
 
-# 3. Build
-npm run build
-
-# 4. Promote ONLY to dev
-./scripts/promote-actions.sh dev
-
-# 5. Commit and PR
-git add actions/src/verify-email.ts                # source change
-git add environments/dev/actions/verify-email.js   # dev's compiled copy
-git commit -m "action: update verify-email logic for dev testing"
-
-# 6. PR → merge → pipeline deploys to dev
-#    QA, VAL, PROD are untouched because their actions/*.js files didn't change
+# Promote to an environment
+npm run promote -- --env dev --module shared-utils
 ```
 
-### Workflow: Promote tested action from dev to qa
-
-```bash
-# After dev testing passes:
-./scripts/promote-actions.sh qa
-
-git add environments/qa/actions/verify-email.js
-git commit -m "action: promote verify-email v3 to qa"
-# PR → merge → pipeline deploys, only qa's action changes
-```
-
-### Workflow: Hotfix directly to prod
-
-```bash
-# 1. Fix the source
-vim actions/src/verify-email.ts
-
-# 2. Build and promote to val + prod only
-cd actions && npm run build
-./scripts/promote-actions.sh val
-./scripts/promote-actions.sh prod
-
-# 3. Commit
-git add actions/src/verify-email.ts
-git add environments/val/actions/verify-email.js
-git add environments/prod/actions/verify-email.js
-git commit -m "action: hotfix verify-email for val/prod"
-
-# Dev and QA keep their existing versions — unaffected
-```
-
-### What about "two versions on main"?
-
-After a dev-only promotion, main has:
-
-```
-actions/src/verify-email.ts                    ← v3 (latest source)
-environments/dev/actions/verify-email.js       ← v3 (promoted)
-environments/qa/actions/verify-email.js        ← v2 (untouched)
-environments/prod/actions/verify-email.js      ← v1 (untouched)
-```
-
-This is correct and intentional. When the pipeline runs, Terraform compares each environment's local `verify-email.js` against what Auth0 has. Since qa's file didn't change, Terraform shows no diff for qa. Only dev sees the update.
-
-The compiled JS files are small (typically 1-5KB per action), so having copies per environment adds negligible repo size. The tradeoff is worth it for the independent promotion control.
+The Terraform module sets `publish = true` by default, which creates an immutable published version on each apply. Actions can then reference the published module.
 
 ---
 
 ## How Forms & Flows Work
 
-### Creating a new form
+### Token Replacement
 
-1. **Design in Auth0 Dashboard** → iterate until the UX is right
-2. **Export the form JSON** from the Dashboard UI
-3. **Tokenize the export** to replace real IDs with placeholders:
+Forms reference flows via `#FLOW-1#` tokens. Flows reference vault connections via `#CONN-1#` tokens. These are mapped in the JSON config files:
 
-```bash
-./scripts/tokenize-export.sh ~/Downloads/progressive-profiling.json \
-    environments/dev/forms/
-```
-
-This produces:
-- `progressive-profiling.form.json` — tokenized form (flow IDs → `#FLOW-1#`, etc.)
-- `progressive-profiling.flow-1.json` — extracted flow with vault tokens (`#CONN-1#`)
-- `progressive-profiling.tokens.json` — map showing which token = which real ID
-
-4. **Create `flows.json` entries** mapping logical names to flow files and vault connections:
-
+**`flows.json`** maps token → vault connection logical name:
 ```json
 {
   "pp_update_user": {
     "name": "Progressive Profiling (Update User)",
-    "file": "forms/progressive-profiling.flow-1.json",
+    "file": "forms/progressive-profiling.flow-update-user.json",
     "token_replacements": { "#CONN-1#": "auth0_mgmt" }
   }
 }
 ```
 
-5. **Create `forms.json` entries** mapping logical names to form files and flow references:
-
+**`forms.json`** maps token → flow logical name:
 ```json
 {
   "progressive_profiling": {
@@ -207,34 +246,74 @@ This produces:
     "file": "forms/progressive-profiling.form.json",
     "token_replacements": {
       "#FLOW-1#": "pp_update_user",
-      "#FLOW-2#": "pp_otp_email",
-      "#FLOW-3#": "pp_verify_otp"
+      "#FLOW-2#": "pp_otp_email"
     }
   }
 }
 ```
 
-6. **Commit and PR** → Terraform creates the vault connections, flows, and forms
+Token replacement is performed by the Terraform modules at plan/apply time.
 
-### Promoting forms to qa/prod
+### Creating a New Form
+
+1. **Design in Auth0 Dashboard** → iterate until the UX is right
+2. **Export the form JSON** from the Dashboard UI
+3. **Tokenize the export**:
 
 ```bash
-# Copy all form + flow files
-cp environments/dev/forms/progressive-profiling.* environments/qa/forms/
-
-# Copy and adapt the metadata configs
-cp environments/dev/flows.json environments/qa/flows.json
-cp environments/dev/forms.json environments/qa/forms.json
-# Edit vault-connections.json if account_name differs per env
-
-# Commit and PR
+./scripts/tokenize-export.sh ~/Downloads/progressive-profiling.json \
+    environments/dev/forms/
 ```
 
-### Updating an existing form
+4. **Add entries** to `flows.json` and `forms.json`
+5. **Commit and PR**
 
-1. Edit the form in the Auth0 Dashboard (dev tenant)
-2. Re-export → re-tokenize → overwrite files in `environments/dev/forms/`
-3. Commit and PR → Terraform detects the diff and updates
+### i18n Translations
+
+Translations are stored as flat key-value JSON files per locale:
+
+```
+environments/dev/i18n/progressive-profiling/en.json
+environments/dev/i18n/progressive-profiling/ja.json
+```
+
+Each file is simple for translators to work with:
+```json
+{
+  "last_name_placeholder": "姓*",
+  "continue_button": "続行する",
+  "terms_text": "<p>利用規約に同意します...</p>"
+}
+```
+
+---
+
+## Validation & Quality Gates
+
+### JSON Schema Validation
+
+All environment config files are validated against schemas in `schemas/`:
+
+```bash
+npm run verify:schemas            # all envs
+node scripts/validate-schemas.mjs --env dev  # single env
+```
+
+### OPA Policies
+
+Terraform plans are checked against OPA/Rego policies in `policies/auth0.rego`:
+- Applications must use OIDC conformance
+- JWT algorithm must be RS256
+- Localhost URLs trigger warnings
+- Resource deletions are denied
+- Undeployed actions trigger warnings
+- Unpublished action modules trigger warnings
+
+Policies run via `conftest` in the pipeline after each plan.
+
+### Checkov Security Scanning
+
+All Terraform modules are scanned with Checkov for security best practices.
 
 ---
 

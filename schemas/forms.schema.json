@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Auth0 Forms Configuration",
+  "type": "object",
+  "additionalProperties": {
+    "type": "object",
+    "required": ["name", "file"],
+    "properties": {
+      "name": { "type": "string", "minLength": 1 },
+      "file": { "type": "string", "pattern": "\\.json$" },
+      "token_replacements": {
+        "type": "object",
+        "additionalProperties": { "type": "string" }
+      }
+    }
+  }
+}

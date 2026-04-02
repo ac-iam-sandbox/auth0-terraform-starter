@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Auth0 Actions Configuration",
+  "type": "object",
+  "additionalProperties": {
+    "type": "object",
+    "required": ["name", "trigger_id", "code_file"],
+    "properties": {
+      "name": { "type": "string", "minLength": 1 },
+      "trigger_id": {
+        "type": "string",
+        "enum": ["post-login", "credentials-exchange", "pre-user-registration", "post-user-registration", "post-change-password", "send-phone-message", "custom-phone-provider"]
+      },
+      "trigger_version": { "type": "string", "default": "v3" },
+      "runtime": { "type": "string", "enum": ["node18", "node22"], "default": "node22" },
+      "deploy": { "type": "boolean", "default": true },
+      "bind": { "type": "boolean", "default": true },
+      "code_file": { "type": "string", "pattern": "\\.js$" },
+      "dependencies": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["name", "version"],
+          "properties": {
+            "name": { "type": "string" },
+            "version": { "type": "string" }
+          }
+        },
+        "default": []
+      },
+      "secrets": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["name", "value"],
+          "properties": {
+            "name": { "type": "string" },
+            "value": { "type": "string" }
+          }
+        },
+        "default": []
+      }
+    }
+  }
+}

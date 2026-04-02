@@ -10,6 +10,8 @@
 # =============================================================================
 
 locals {
+  # When running under a stack, env.hcl is in the environment directory.
+  # We use find_in_parent_folders which traverses up from the generated unit.
   env_config  = read_terragrunt_config(find_in_parent_folders("env.hcl"))
   environment = local.env_config.locals.environment
 }
@@ -24,7 +26,7 @@ generate "provider" {
       required_providers {
         auth0 = {
           source  = "auth0/auth0"
-          version = "~> 1.14.0"
+          version = "~> 1.14"
         }
       }
     }
@@ -50,8 +52,6 @@ remote_state {
     tenant_id       = get_env("ARM_TENANT_ID", "")
     subscription_id = get_env("ARM_SUBSCRIPTION_ID", "")
 
-    # Azure commercial cloud (not government)
-    # Change to "usgovernment" if using Azure Government
     environment = "public"
 
     use_cli          = true
@@ -61,10 +61,4 @@ remote_state {
 
 inputs = {
   environment = local.environment
-
-  tags = {
-    Environment = local.environment
-    ManagedBy   = "terragrunt"
-    Repository  = "auth0-iac"
-  }
 }

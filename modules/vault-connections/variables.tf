@@ -9,13 +9,3 @@ variable "vault_connections" {
   }))
   default = {}
 }
-
-variable "environment" {
-  type    = string
-  default = ""
-}
-
-variable "tags" {
-  type    = map(string)
-  default = {}
-}

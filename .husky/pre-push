@@ -1,0 +1,46 @@
+#!/bin/sh
+
+# Pre-push: full validation before code leaves the developer's machine
+
+set -e
+
+echo "╔══════════════════════════════════════════════════╗"
+echo "║  Pre-push checks                                ║"
+echo "╚══════════════════════════════════════════════════╝"
+
+# 1. Run all tests
+echo ""
+echo "→ Running action tests..."
+cd actions && npm test && cd ..
+
+if [ -d "action-modules/src" ] && ls action-modules/src/*.ts 1>/dev/null 2>&1; then
+  echo ""
+  echo "→ Running action module tests..."
+  cd action-modules && npm test && cd ..
+fi
+
+# 2. Terraform format check
+echo ""
+echo "→ Checking Terraform formatting..."
+terraform fmt -check -recursive -diff modules/
+
+# 3. Terraform validate all modules
+echo ""
+echo "→ Validating Terraform modules..."
+for mod in modules/*/; do
+  echo "  Validating: $mod"
+  (cd "$mod" && terraform init -backend=false -input=false -no-color > /dev/null 2>&1 && terraform validate -no-color)
+done
+
+# 4. Schema validation
+echo ""
+echo "→ Validating JSON schemas..."
+node scripts/validate-schemas.mjs
+
+# 5. Manifest integrity (only if manifests exist)
+echo ""
+echo "→ Verifying promotion manifests..."
+node scripts/verify-manifests.mjs
+
+echo ""
+echo "✓ All pre-push checks passed."

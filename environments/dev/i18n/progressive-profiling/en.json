@@ -1,0 +1,14 @@
+{
+  "last_name_placeholder": "Last Name*",
+  "first_name_placeholder": "First Name*",
+  "last_name_kana_placeholder": "Last Name (Kana)*",
+  "first_name_kana_placeholder": "First Name (Kana)*",
+  "continue_button": "Continue",
+  "terms_text": "<p>I agree with <a href=\"https://apps.myalcon.com/patient-portal/jp/ja/documents/terms-and-conditions\" target=\"_blank\">Terms and Conditions</a>, <a href=\"https://apps.myalcon.com/patient-portal/jp/ja/documents/terms-of-use\" target=\"_blank\">Terms of Use</a> and I have read and understood the <a href=\"https://preferences.myalcon.com/privacy-notice/?hidebanner=true\" target=\"_blank\">Privacy Notice</a>.</p>",
+  "health_data_text": "<p>I allow Alcon and eye care professional to process my eye <a href=\"https://apps.myalcon.com/patient-portal/jp/ja/documents/health-related-info\" target=\"_blank\">health-related information</a>.</p>",
+  "marketing_text": "<p>I hereby confirm to receive the Marketing Communication.</p>",
+  "otp_email_subject": "MARLÖ Email Verification",
+  "verification_code_title": "<h2>Verification code</h2>",
+  "verification_code_description": "<p>A verification code was sent to <strong>{{fields.link_email.email}}</strong>. Check your email and enter the code below.</p>",
+  "otp_error_message": "We're sorry, your verification code is not valid. Please, review it and try it again."
+}
