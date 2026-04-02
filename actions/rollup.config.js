@@ -2,10 +2,6 @@ import typescript from '@rollup/plugin-typescript';
 import { readdirSync, existsSync } from 'fs';
 import { basename } from 'path';
 
-/**
- * Auto-discover .ts entry points from src/actions/ and src/modules/.
- * Outputs compiled JS to dist/actions/ and dist/modules/ respectively.
- */
 function discoverEntries(subdir) {
   const dir = `src/${subdir}`;
   if (!existsSync(dir)) return [];
@@ -35,8 +31,10 @@ export default entries.map(({ input, outputDir, outputName }) => ({
   external: [],
   plugins: [
     typescript({
-      module: 'esnext',
       tsconfig: './tsconfig.json',
+      outDir: outputDir,
+      declaration: false,
+      sourceMap: false,
     }),
   ],
 }));
