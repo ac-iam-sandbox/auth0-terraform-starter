@@ -1,0 +1,3 @@
+# Compiled action JS files for this environment.
+# To update: cd actions && npm run build && cp dist/*.js ../environments/dev/actions/
+# Each environment maintains its own copy for independent promotion.

@@ -1,0 +1,29 @@
+{
+  "portal_spa": {
+    "name": "Portal SPA (val)",
+    "app_type": "spa",
+    "description": "Customer portal",
+    "callbacks": [
+      "https://val.mycompany.com/callback"
+    ],
+    "allowed_logout_urls": [
+      "https://val.mycompany.com"
+    ],
+    "web_origins": [
+      "https://val.mycompany.com"
+    ],
+    "jwt_lifetime_seconds": 36000
+  },
+  "admin_rwa": {
+    "name": "Admin Portal (val)",
+    "app_type": "regular_web",
+    "description": "Internal admin portal",
+    "callbacks": [
+      "https://admin-val.mycompany.com/callback"
+    ],
+    "allowed_logout_urls": [
+      "https://admin-val.mycompany.com"
+    ],
+    "jwt_lifetime_seconds": 7200
+  }
+}

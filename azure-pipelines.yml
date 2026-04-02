@@ -1,0 +1,351 @@
+# =============================================================================
+# Azure Pipelines: Auth0 Terraform CI/CD
+# =============================================================================
+# Trunk-based development workflow:
+#   - PR to main  → Build + Validate + Security Scan + Plan Preview
+#   - Merge to main → Build + Validate + Security → Deploy DEV → QA → VAL → PROD
+#
+# Each deployment stage uses plan → approve → apply with artifact traceability.
+# Approvals are configured on Azure DevOps Environments, not in this YAML.
+#
+# Action versioning:
+#   - Versioned snapshots (dist/v1/, dist/v2/) are committed to git
+#   - Each environment pins to a version via actions.json code_file path
+#   - DEV uses dist/latest/ (built fresh each CI run)
+#   - QA/VAL/PROD pin to specific versions (e.g., dist/v1/)
+#   - To release new action code: bump actions/VERSION, CI stamps it
+# =============================================================================
+
+name: $(Date:yyyyMMdd)$(Rev:.r)
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - actions/**
+      - modules/**
+      - catalog/**
+      - environments/**
+      - pipelines/**
+      - root.hcl
+      - azure-pipelines.yml
+
+pr:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - actions/**
+      - modules/**
+      - catalog/**
+      - environments/**
+      - pipelines/**
+      - root.hcl
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  - group: terraform-common
+  - name: NODE_VERSION
+    value: '20.x'
+  - name: TF_VERSION
+    value: '1.13.3'
+  - name: TG_VERSION
+    value: '0.78.4'
+  - name: TF_IN_AUTOMATION
+    value: '1'
+
+stages:
+  # ========================================
+  # Stage 1: Build TypeScript Actions
+  # ========================================
+  - stage: Build
+    displayName: 'Build Actions'
+    jobs:
+      - job: BuildActions
+        displayName: 'Build & Version-Stamp Actions'
+        steps:
+          - task: NodeTool@0
+            displayName: 'Install Node.js $(NODE_VERSION)'
+            inputs:
+              versionSpec: $(NODE_VERSION)
+
+          - task: Cache@2
+            displayName: 'Cache npm dependencies'
+            inputs:
+              key: 'npm | "$(Agent.OS)" | actions/package-lock.json'
+              path: actions/node_modules
+              restoreKeys: |
+                npm | "$(Agent.OS)"
+
+          - script: |
+              set -euo pipefail
+              cd actions
+              npm ci
+              npm run build
+            displayName: 'Install & Build Actions'
+
+          - script: |
+              set -euo pipefail
+              cd actions
+              npm test
+            displayName: 'Run Unit Tests'
+
+          - script: |
+              set -euo pipefail
+              cd actions
+              npm run test:coverage || true
+            displayName: 'Generate Coverage Report'
+            continueOnError: true
+
+          - task: PublishTestResults@2
+            displayName: 'Publish Test Results'
+            inputs:
+              testResultsFormat: 'JUnit'
+              testResultsFiles: 'actions/test-results/*.xml'
+              failTaskOnFailedTests: true
+            condition: succeededOrFailed()
+
+          # Stamp the build with the version from VERSION file
+          # This creates dist/v{N}/ and dist/latest/
+          - script: |
+              set -euo pipefail
+              cd actions
+              bash scripts/version-stamp.sh
+              echo "Current action version: $(cat VERSION)"
+              echo "Versioned builds available:"
+              ls -la dist/v*/
+            displayName: 'Stamp Versioned Build'
+
+          # Publish the entire dist/ directory (includes v1/, v2/, latest/)
+          - publish: actions/dist
+            artifact: actions-dist
+            displayName: 'Publish Actions Artifact'
+
+  # ========================================
+  # Stage 2: Security & Quality Checks
+  # ========================================
+  - stage: SecurityScan
+    displayName: 'Security & Quality'
+    dependsOn: Build
+    jobs:
+      - job: SecurityChecks
+        displayName: 'Security Scanning'
+        steps:
+          - script: |
+              set -euo pipefail
+              pip install checkov --break-system-packages
+            displayName: 'Install Checkov'
+
+          - script: |
+              set -euo pipefail
+              checkov -d modules/ \
+                --framework terraform \
+                --soft-fail \
+                --output cli \
+                --output junitxml \
+                --output-file-path $(Build.ArtifactStagingDirectory)
+            displayName: 'Checkov: Module Security Scan'
+            continueOnError: true
+
+          - task: PublishTestResults@2
+            displayName: 'Publish Security Scan Results'
+            inputs:
+              testResultsFormat: 'JUnit'
+              testResultsFiles: '$(Build.ArtifactStagingDirectory)/results_junitxml.xml'
+              testRunTitle: 'Checkov Security Scan'
+              failTaskOnFailedTests: false
+            condition: succeededOrFailed()
+
+      - job: LintCheck
+        displayName: 'Linting & Formatting'
+        steps:
+          - task: TerraformInstaller@1
+            displayName: 'Install Terraform $(TF_VERSION)'
+            inputs:
+              terraformVersion: $(TF_VERSION)
+
+          - script: |
+              set -euo pipefail
+              terraform fmt -check -recursive -diff modules/
+            displayName: 'Terraform Format Check'
+
+          - task: NodeTool@0
+            displayName: 'Install Node.js'
+            inputs:
+              versionSpec: $(NODE_VERSION)
+
+          - script: |
+              set -euo pipefail
+              cd actions
+              npm ci
+              npm run lint || echo "ESLint warnings found (non-blocking)"
+            displayName: 'ESLint Check'
+            continueOnError: true
+
+  # ========================================
+  # Stage 3: Terraform Validation (all envs)
+  # ========================================
+  - stage: Validate
+    displayName: 'Terraform Validation'
+    dependsOn: SecurityScan
+    jobs:
+      - job: ValidateAll
+        displayName: 'Validate All Modules'
+        steps:
+          - task: TerraformInstaller@1
+            displayName: 'Install Terraform $(TF_VERSION)'
+            inputs:
+              terraformVersion: $(TF_VERSION)
+
+          - script: |
+              set -euo pipefail
+              for mod in modules/*/; do
+                echo "Validating: $mod"
+                cd "$mod"
+                terraform init -backend=false -input=false -no-color
+                terraform validate -no-color
+                echo "✓ $mod passed"
+                cd ../..
+              done
+            displayName: 'Validate All Modules'
+
+  # ========================================
+  # Stage 4: Plan Preview (PR only)
+  # ========================================
+  - stage: PlanPreview
+    displayName: 'Plan Preview (PR)'
+    dependsOn: Validate
+    condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'))
+    jobs:
+      - job: PlanDev
+        displayName: 'Preview DEV Plan'
+        variables:
+          - group: na-dev-axon-cic
+        steps:
+          - download: current
+            artifact: actions-dist
+
+          - script: |
+              set -euo pipefail
+              mkdir -p actions/dist
+              cp -r "$(Pipeline.Workspace)/actions-dist/"* actions/dist/
+            displayName: 'Restore Actions Build'
+
+          - task: TerraformInstaller@1
+            inputs:
+              terraformVersion: $(TF_VERSION)
+
+          - script: |
+              set -euo pipefail
+              curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v$(TG_VERSION)/terragrunt_linux_amd64" \
+                -o /usr/local/bin/terragrunt
+              chmod +x /usr/local/bin/terragrunt
+            displayName: 'Install Terragrunt'
+
+          - script: |
+              set -euo pipefail
+              cd environments/dev
+              terragrunt stack generate 2>/dev/null || true
+              terragrunt run --all -- plan -input=false -no-color -lock=false \
+                2>&1 | tee "$(Build.ArtifactStagingDirectory)/dev-plan-preview.txt"
+            displayName: 'Generate DEV Plan Preview'
+            env:
+              AUTH0_DOMAIN: $(AUTH0_DOMAIN)
+              AUTH0_CLIENT_ID: $(AUTH0_CLIENT_ID)
+              AUTH0_CLIENT_SECRET: $(AUTH0_CLIENT_SECRET)
+              ARM_TENANT_ID: $(ARM_TENANT_ID)
+              ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+              ARM_RESOURCE_GROUP: $(ARM_RESOURCE_GROUP)
+              ARM_STORAGE_ACCOUNT: $(ARM_STORAGE_ACCOUNT)
+              ARM_CONTAINER_NAME: $(ARM_CONTAINER_NAME)
+
+          - publish: $(Build.ArtifactStagingDirectory)
+            artifact: plan-preview-dev
+            displayName: 'Publish DEV Plan Preview'
+
+  # ========================================
+  # Stage 5: CI Summary
+  # ========================================
+  - stage: CISummary
+    displayName: 'CI Summary'
+    dependsOn:
+      - Build
+      - SecurityScan
+      - Validate
+    condition: succeededOrFailed()
+    jobs:
+      - job: Summary
+        displayName: 'Pipeline Summary'
+        steps:
+          - script: |
+              set -euo pipefail
+              echo "========================================"
+              echo "CI Pipeline Summary"
+              echo "========================================"
+              echo "Build: $(Build.BuildNumber)"
+              echo "Branch: $(Build.SourceBranchName)"
+              echo "Commit: $(Build.SourceVersion)"
+              echo "Trigger: $(Build.Reason)"
+              echo "========================================"
+            displayName: 'Display Summary'
+
+  # ========================================
+  # CD STAGES (main branch only, sequential)
+  # ========================================
+
+  - stage: DeployDev
+    displayName: 'Deploy to DEV'
+    dependsOn: [Build, SecurityScan, Validate, CISummary]
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - template: pipelines/templates/deploy-environment.yml
+        parameters:
+          environment: dev
+          environmentName: DEV
+          variableGroup: na-dev-axon-cic
+          azureEnvironment: na-dev-axon-cic
+          isProduction: false
+
+  - stage: DeployQA
+    displayName: 'Deploy to QA'
+    dependsOn: DeployDev
+    condition: succeeded()
+    jobs:
+      - template: pipelines/templates/deploy-environment.yml
+        parameters:
+          environment: qa
+          environmentName: QA
+          variableGroup: na-qa-axon-cic
+          azureEnvironment: na-qa-axon-cic
+          isProduction: false
+
+  - stage: DeployVal
+    displayName: 'Deploy to VAL'
+    dependsOn: DeployQA
+    condition: succeeded()
+    jobs:
+      - template: pipelines/templates/deploy-environment.yml
+        parameters:
+          environment: val
+          environmentName: VAL
+          variableGroup: na-val-axon-cic
+          azureEnvironment: na-val-axon-cic
+          isProduction: false
+
+  - stage: DeployProd
+    displayName: 'Deploy to PROD'
+    dependsOn: DeployVal
+    condition: succeeded()
+    jobs:
+      - template: pipelines/templates/deploy-environment.yml
+        parameters:
+          environment: prod
+          environmentName: PROD
+          variableGroup: na-prod-axon-cic
+          azureEnvironment: na-prod-axon-cic
+          isProduction: true

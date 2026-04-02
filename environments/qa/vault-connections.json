@@ -1,0 +1,8 @@
+{
+  "auth0_mgmt": {
+    "name": "Auth0",
+    "app_id": "AUTH0",
+    "account_name": "apac-qa-axon-cic.jp.auth0.com",
+    "setup": {}
+  }
+}

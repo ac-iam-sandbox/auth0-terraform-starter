@@ -1,0 +1,195 @@
+{
+  "name": "Progressive Profiling",
+  "languages": {
+    "primary": "en",
+    "default": "en"
+  },
+  "translations": {
+    "ja": {
+      "ending": null,
+      "messages": { "custom": {}, "errors": {} },
+      "components": {
+        "last_name": { "config": { "placeholder": "姓\\*" } },
+        "first_name": { "config": { "placeholder": "名\\*" } },
+        "next_button_7qNr": { "config": { "text": "続行する" } },
+        "terms_and_privacy": {
+          "config": {
+            "text": "<p><a href=\"https://apps.myalcon.com/patient-portal/jp/ja/documents/terms-and-conditions\" target=\"_blank\">「利用規約</a>、<a href=\"https://apps.myalcon.com/patient-portal/jp/ja/documents/terms-of-use\" target=\"_blank\">利用条件</a> に同意し、<a href=\"https://preferences.myalcon.com/privacy-notice/?hidebanner=true\" target=\"_blank\">プライバシー通知</a> を読み理解しました。」*</p>"
+          }
+        },
+        "health_data_processing": {
+          "config": {
+            "text": "<p>「アルコンおよび眼科医が、<a href=\"https://apps.myalcon.com/patient-portal/jp/ja/documents/health-related-info\" target=\"_blank\">私の 眼の健康に関する情報</a> を取り扱うことを許可します。」</p>"
+          }
+        },
+        "marketing_communication": {
+          "config": {
+            "text": "<p>「マーケティング情報を受け取ることに同意します。」</p>"
+          }
+        }
+      }
+    }
+  },
+  "nodes": [
+    {
+      "id": "progressive_profiling_step",
+      "type": "STEP",
+      "coordinates": { "x": -197, "y": -342 },
+      "alias": "Progressive Profiling Step",
+      "config": {
+        "components": [
+          {
+            "id": "ext_translation_script",
+            "category": "BLOCK",
+            "type": "HTML",
+            "config": {
+              "content": "<script type=\"text/javascript\">\n  var connectionType = \"{{ fields.connection_type }}\" || \"\";\n  var formType = \"progressive_profiling\";\n\n  applyFormsTranslations(connectionType, formType);\n</script>"
+            }
+          },
+          {
+            "id": "last_name", "category": "FIELD", "type": "TEXT",
+            "required": true, "sensitive": false,
+            "config": { "multiline": false, "placeholder": "Last Name*" }
+          },
+          {
+            "id": "first_name", "category": "FIELD", "type": "TEXT",
+            "required": true, "sensitive": false,
+            "config": { "multiline": false, "placeholder": "First Name*" }
+          },
+          {
+            "id": "last_name_kana", "category": "FIELD", "type": "TEXT",
+            "required": true, "sensitive": false,
+            "config": { "multiline": false, "placeholder": "Last Name (Kana)*" }
+          },
+          {
+            "id": "first_name_kana", "category": "FIELD", "type": "TEXT",
+            "required": true, "sensitive": false,
+            "config": { "multiline": false, "placeholder": "First Name (Kana)*" }
+          },
+          {
+            "id": "link_email", "category": "FIELD", "type": "CUSTOM",
+            "required": false, "sensitive": false,
+            "config": {
+              "schema": {},
+              "code": "function customEmailField(context) {\n  let input;\n  let isExistingEmail = false;\n  let isVerified = false;\n  function buildInput() {\n    const params = context.custom.getParams();\n    const email = params.email || \"\";\n    isExistingEmail = !!(email && email.trim() !== \"\");\n    const connType = params.connection_type || \"\";\n    const hiddenFields = context.form.getAllHiddenFields() || {};\n    const verifiedValue = hiddenFields.email_verified || params.email_verified || \"\";\n    isVerified = verifiedValue === \"true\" || verifiedValue === true;\n    input = document.createElement(\"input\");\n    input.type = \"email\";\n    input.classList.add(\"af-stringField-input\");\n    input.id = \"email\";\n    if (isExistingEmail) {\n      input.value = email;\n      input.readOnly = true;\n      input.disabled = true;\n      input.style.opacity = \"0.7\";\n      input.style.cursor = \"not-allowed\";\n    } else {\n      input.value = \"\";\n      input.placeholder = \"Enter your email address\";\n      input.readOnly = false;\n      input.disabled = false;\n    }\n    return input;\n  }\n  return {\n    init() { return buildInput(); },\n    getScripts() { return []; },\n    block() { if (input) input.disabled = true; },\n    unblock() { if (input && !isExistingEmail) input.disabled = false; },\n    getValue() {\n      const emailValue = input ? input.value.trim() : \"\";\n      const isNewEmail = !isExistingEmail && !!emailValue;\n      const needsVerification = isNewEmail || (isExistingEmail && !isVerified);\n      return { email: emailValue, needs_verification: needsVerification };\n    }\n  };\n}",
+              "params": {
+                "email": "{{fields.email}}",
+                "connection_type": "{{fields.connection_type}}"
+              }
+            }
+          },
+          {
+            "id": "terms_and_privacy", "category": "FIELD", "type": "LEGAL",
+            "required": true, "sensitive": false,
+            "config": {
+              "text": "<p>I agree with <a href=\"https://apps.myalcon.com/patient-portal/jp/ja/documents/terms-and-conditions\" target=\"_blank\">Terms and Conditions</a>, <a href=\"https://apps.myalcon.com/patient-portal/jp/ja/documents/terms-of-use\" target=\"_blank\">Terms of Use</a> and I have read and understood the <a href=\"https://preferences.myalcon.com/privacy-notice/?hidebanner=true\" target=\"_blank\">Privacy Notice</a>.</p>"
+            }
+          },
+          {
+            "id": "health_data_processing", "category": "FIELD", "type": "LEGAL",
+            "required": true, "sensitive": false,
+            "config": {
+              "text": "<p>I allow Alcon and eye care professional to process my eye <a href=\"https://apps.myalcon.com/patient-portal/jp/ja/documents/health-related-info\" target=\"_blank\">health-related information</a>.</p>"
+            }
+          },
+          {
+            "id": "marketing_communication", "category": "FIELD", "type": "LEGAL",
+            "required": false, "sensitive": false,
+            "config": { "text": "<p>I hereby confirm to receive the Marketing Communication.</p>" }
+          },
+          {
+            "id": "next_button_7qNr", "category": "BLOCK", "type": "NEXT_BUTTON",
+            "config": { "text": "Continue" }
+          }
+        ],
+        "next_node": "email_verification_router"
+      }
+    },
+    {
+      "id": "update_progressive_profiling_data",
+      "type": "FLOW",
+      "coordinates": { "x": 2274, "y": -153 },
+      "alias": "Update Progressive Profiling Data",
+      "config": { "flow_id": "#FLOW-1#", "next_node": "$ending" }
+    },
+    {
+      "id": "progressive_profiling_otp_email",
+      "type": "FLOW",
+      "coordinates": { "x": 892, "y": -278 },
+      "alias": "progressive_profiling_otp_email",
+      "config": { "flow_id": "#FLOW-2#", "next_node": "verify_email_step" }
+    },
+    {
+      "id": "verify_email_step",
+      "type": "STEP",
+      "coordinates": { "x": 1315, "y": 132 },
+      "alias": "Verify Email Step",
+      "config": {
+        "components": [
+          {
+            "id": "html_r4BA", "category": "BLOCK", "type": "HTML",
+            "config": { "content": "<script type=\"text/javascript\">\n  var connectionType = \"{{ fields.connection_type }}\" || \"\";\n  var formType = \"email_verification\";\n  applyFormsTranslations(connectionType, formType);\n</script>" }
+          },
+          {
+            "id": "verify_otp_text", "category": "BLOCK", "type": "RICH_TEXT",
+            "config": { "content": "<h2>Verification code</h2><p>A verification code was sent to <strong>{{fields.link_email.email}}</strong>. Check your email and enter the code below.</p>" }
+          },
+          {
+            "id": "verification_code", "category": "FIELD", "type": "NUMBER",
+            "label": "Verification code", "required": true, "sensitive": false
+          },
+          {
+            "id": "next_button_5GlL", "category": "BLOCK", "type": "NEXT_BUTTON",
+            "config": { "text": "Continue" }
+          }
+        ],
+        "next_node": "verify_otp_update_user"
+      }
+    },
+    {
+      "id": "verify_otp_update_user",
+      "type": "FLOW",
+      "coordinates": { "x": 1976, "y": 271 },
+      "alias": "Verify OTP and Update User",
+      "config": { "flow_id": "#FLOW-3#", "next_node": "update_progressive_profiling_data" }
+    },
+    {
+      "id": "email_verification_router",
+      "type": "ROUTER",
+      "coordinates": { "x": 428, "y": -38 },
+      "alias": "Email Verification Router",
+      "config": {
+        "rules": [
+          {
+            "id": "id_720752762174",
+            "alias": "Email Verification Required",
+            "condition": {
+              "operands": [
+                { "operands": ["{{ fields.link_email.needs_verification }}", true], "operator": "EQ" }
+              ],
+              "operator": "AND"
+            },
+            "next_node": "progressive_profiling_otp_email"
+          }
+        ],
+        "fallback": "update_progressive_profiling_data"
+      }
+    }
+  ],
+  "start": {
+    "hidden_fields": [
+      { "key": "email" },
+      { "key": "connection_type", "value": "line" },
+      { "key": "email_verified" }
+    ],
+    "next_node": "progressive_profiling_step",
+    "coordinates": { "x": -631, "y": -55 }
+  },
+  "ending": {
+    "resume_flow": true,
+    "coordinates": { "x": 2642, "y": -173 }
+  },
+  "style": {
+    "css": ".af-stringField-input {\n    border: none !important;\n    border-bottom: 1px solid #9ca3af !important;\n    border-radius: 0 !important;\n    background-color: #f9fafb !important;\n    padding: 12px !important;\n    font-size: 14px !important;\n    color: #1f2937 !important;\n}\n.af-stringField-input:focus {\n    background-color: #f3f4f6 !important;\n    border-bottom-color: #4b5563 !important;\n    box-shadow: none !important;\n}\n.af-stringField-input::placeholder { color: #6b7280 !important; }\n.af-imageBlock-wrapper { text-align: center !important; }\n.af-imageBlock-wrapper img { margin: 0 auto !important; display: block !important; }\n.af-form { margin: 0 auto !important; }"
+  }
+}

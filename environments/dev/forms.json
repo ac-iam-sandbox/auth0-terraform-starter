@@ -1,0 +1,11 @@
+{
+  "progressive_profiling": {
+    "name": "Progressive Profiling",
+    "file": "forms/progressive-profiling.form.json",
+    "token_replacements": {
+      "#FLOW-1#": "progressive_profiling_update_user",
+      "#FLOW-2#": "progressive_profiling_otp_email",
+      "#FLOW-3#": "progressive_profiling_verify_otp"
+    }
+  }
+}

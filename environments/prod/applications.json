@@ -1,0 +1,34 @@
+{
+  "portal_spa": {
+    "name": "Portal SPA",
+    "app_type": "spa",
+    "description": "Customer portal",
+    "callbacks": [
+      "https://portal.mycompany.com/callback"
+    ],
+    "allowed_logout_urls": [
+      "https://portal.mycompany.com"
+    ],
+    "web_origins": [
+      "https://portal.mycompany.com"
+    ],
+    "jwt_lifetime_seconds": 36000
+  },
+  "admin_rwa": {
+    "name": "Admin Portal",
+    "app_type": "regular_web",
+    "description": "Internal admin portal",
+    "callbacks": [
+      "https://admin.mycompany.com/callback"
+    ],
+    "allowed_logout_urls": [
+      "https://admin.mycompany.com"
+    ],
+    "jwt_lifetime_seconds": 7200
+  },
+  "orders_m2m": {
+    "name": "Orders Service",
+    "app_type": "non_interactive",
+    "description": "Backend order processing service - machine to machine"
+  }
+}

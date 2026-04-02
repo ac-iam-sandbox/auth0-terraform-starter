@@ -1,17 +1,17 @@
-// Minimal custom types until Auth0 publishes official ones for Actions.
-type PostLoginAPI = {
-  access: { deny: (message: string) => void };
-};
+import type { Event, PostLoginAPI } from '@auth0/actions/post-login/v3';
 
-type Event = {
-  user: { email_verified?: boolean };
-  client: { name?: string };
-};
-
-export const onExecutePostLogin = async (event: Event, api: PostLoginAPI) => {
+/**
+ * Handler that will be called during the execution of a PostLogin flow.
+ *
+ * @param {Event} event - Details about the user and the context in which they are logging in.
+ * @param {PostLoginAPI} api - Interface whose methods can be used to change the behavior of the login.
+ */
+export const onExecutePostLogin = async (
+  event: Event,
+  api: PostLoginAPI
+): Promise<void> => {
   if (!event.user?.email_verified) {
     api.access.deny('Please verify your email address to continue.');
+    return;
   }
 };
-
-// (Optional) export onContinuePostLogin etc, if needed in future.

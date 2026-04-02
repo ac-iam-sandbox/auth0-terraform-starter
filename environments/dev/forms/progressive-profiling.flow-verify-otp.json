@@ -1,0 +1,63 @@
+{
+  "name": "Progressive Profiling (Verify OTP and Update User)",
+  "actions": [
+    {
+      "id": "verify_otp",
+      "alias": "Verify OTP",
+      "type": "OTP",
+      "action": "VERIFY_CODE",
+      "allow_failure": false,
+      "mask_output": false,
+      "params": { "reference": "{{fields.email}}", "code": "{{fields.verification_code}}" }
+    },
+    {
+      "id": "if_then_condition",
+      "alias": "Is it valid?",
+      "type": "FLOW",
+      "action": "BOOLEAN_CONDITION",
+      "allow_failure": false,
+      "mask_output": false,
+      "params": {
+        "if": {
+          "operands": [
+            { "operands": ["{{actions.verify_otp.valid}}", true], "operator": "EQ" }
+          ],
+          "operator": "AND"
+        },
+        "then": [
+          {
+            "id": "update_user",
+            "alias": "Update user",
+            "type": "AUTH0",
+            "action": "UPDATE_USER",
+            "allow_failure": false,
+            "mask_output": false,
+            "params": {
+              "connection_id": "#CONN-1#",
+              "user_id": "{{context.user.user_id}}",
+              "changes": {
+                "user_metadata": {
+                  "email": "{{ fields.link_email.email }}",
+                  "email_verified": true
+                }
+              }
+            }
+          }
+        ],
+        "else": [
+          {
+            "id": "show_error_message",
+            "alias": "Show error message",
+            "type": "FLOW",
+            "action": "ERROR_MESSAGE",
+            "allow_failure": false,
+            "mask_output": false,
+            "params": {
+              "message": "We're sorry, your verification code is not valid. Please, review it and try it again."
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

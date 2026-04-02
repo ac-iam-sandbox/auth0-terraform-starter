@@ -1,676 +1,281 @@
-# Auth0 Terraform + GitHub Actions: Enterprise Setup Guide
+# Auth0 Infrastructure as Code
 
-This guide provides end-to-end setup for Auth0 infrastructure as code with Terraform, Azure backend locking, unified CI/CD pipeline, and GitHub Actions with enterprise best practices.
+Enterprise Auth0 tenant management using Terraform modules orchestrated by Terragrunt Stacks, with trunk-based CI/CD via Azure Pipelines.
+
+## What This Repo Manages
+
+| Resource | Managed Here | Managed Elsewhere |
+|---|---|---|
+| Applications (clients) | ✅ CRUD | — |
+| Client credentials | ✅ CRUD | — |
+| Actions (post-login, etc.) | ✅ Create/Read/Update | — |
+| Trigger bindings | ✅ Read/Update | — |
+| Forms | ✅ Create/Read/Update | — |
+| Flows | ✅ Create/Read/Update | — |
+| Flow vault connections | ✅ Create/Read/Update | — |
+| APIs / Resource servers | — | ✅ Platform team repo |
+| Connections (DB, social, SAML) | — | ✅ Platform team repo |
+| Connection ↔ client associations | — | ✅ Platform team repo |
+| Branding / tenant settings | — | ✅ Platform team repo |
+| Attack protection | — | ✅ Platform team repo |
+| Log streams | — | ✅ Platform team repo |
+
+**Why connection-client associations live in the platform repo**: The connection owner (platform team) controls which applications can use their connections. This repo declares applications; the platform repo grants access via `auth0_connection_clients`.
+
+**Safety**: All resources have `lifecycle { prevent_destroy = true }` to prevent accidental deletions. To intentionally remove a resource, you must first remove the lifecycle block, plan, review, and apply.
+
+## Architecture
+
+```
+actions/                              ← TypeScript SOURCE (single copy, dev workspace)
+  ├── src/*.ts                        ← Write action code here
+  ├── src/__tests__/*.test.ts         ← Unit tests
+  └── dist/                           ← CI build output (gitignored, transient)
+
+environments/{dev,qa,val,prod}/
+  ├── applications.json               ← Which apps exist in this env
+  ├── actions.json                    ← Action metadata (name, trigger, secrets)
+  ├── actions/*.js                    ← Compiled JS for THIS env (committed)
+  ├── vault-connections.json          ← Vault connection config
+  ├── flows.json                      ← Flow metadata + file paths
+  ├── forms.json                      ← Form metadata + file paths
+  ├── forms/*.form.json               ← Tokenized form exports
+  ├── forms/*.flow-*.json             ← Tokenized flow exports
+  ├── env.hcl                         ← Environment identity
+  └── terragrunt.stack.hcl           ← Stack definition
+
+modules/                              ← Terraform modules
+  ├── applications/                   ← auth0_client + auth0_client_credentials
+  ├── actions/                        ← auth0_action + auth0_trigger_actions
+  ├── forms/                          ← auth0_form
+  ├── flows/                          ← auth0_flow
+  └── vault-connections/              ← auth0_flow_vault_connection
+
+catalog/units/                        ← Terragrunt catalog (DRY unit definitions)
+scripts/
+  ├── promote-actions.sh              ← Copy compiled JS to target env
+  └── tokenize-export.sh             ← Convert Dashboard export to tokenized JSON
+```
 
 ---
 
-## Prerequisites
+## How Actions Work
 
-* Terraform ≥ 1.13.3 (required for S3-native locking)
-* Node.js 20+
-* Azure CLI configured
-* Auth0 Management API credentials for each environment (dev, prod)
-* GitHub repository with Actions enabled
+### The lifecycle of action code
 
-### Required GitHub Secrets (enterprise ready)
-
-Store these as repository secrets or per-environment secrets:
-
-- `AZURE_CLIENT_ID`
-- `AZURE_CLIENT_SECRET`
-- `AZURE_TENANT_ID`
-- `AZURE_SUBSCRIPTION_ID`
-
-Per environment (for terraform backend and Auth0 variables):
-- `ARM_RESOURCE_GROUP_DEV`, `ARM_STORAGE_ACCOUNT_DEV`, `ARM_CONTAINER_NAME_DEV`
-- `AUTH0_DOMAIN_DEV`, `AUTH0_CLIENT_ID_DEV`, `AUTH0_CLIENT_SECRET_DEV`
-- `ARM_RESOURCE_GROUP_PROD`, `ARM_STORAGE_ACCOUNT_PROD`, `ARM_CONTAINER_NAME_PROD`
-- `AUTH0_DOMAIN_PROD`, `AUTH0_CLIENT_ID_PROD`, `AUTH0_CLIENT_SECRET_PROD`
-
-Then configure protected GitHub environments: `dev`, `prod` and require reviewers as needed for prod.
-
----
-
-## Architecture Overview
-
-**Pipeline Strategy:**
-- **GitHub Actions workflows**: CI in `.github/workflows/ci.yml`; deploy in `.github/workflows/terraform-deploy.yml`
-- **GitHub Flow**: Feature branches → PR (CI only) → main (CI + parameterized plan/apply)
-- **Artifact Reuse**: reuse built artifacts for action packaging in plan/apply flows
-
-**Pipeline Flow:**
 ```
-Pull Request:
-  → CI Stages: Build → SecurityScan → Validate → PlanPreview → Summary
-  → No deployment
-  
-Merge to main:
-  → CI Stages: Build → SecurityScan → Validate → Summary
-  → CD Stages: DeployDev → DeployProd
-  → All CD stages reuse artifacts from Build stage
+┌──────────────────────────────────────────────────────────────────────┐
+│                                                                      │
+│  actions/src/post-login-action.ts    ← You write code HERE           │
+│            │                                                         │
+│            │  npm run build                                          │
+│            ▼                                                         │
+│  actions/dist/post-login-action.js   ← Transient build (gitignored)  │
+│            │                                                         │
+│            │  ./scripts/promote-actions.sh dev                       │
+│            ▼                                                         │
+│  environments/dev/actions/post-login-action.js   ← COMMITTED to git  │
+│                                                                      │
+│  environments/qa/actions/post-login-action.js    ← DIFFERENT copy    │
+│  environments/prod/actions/post-login-action.js  ← DIFFERENT copy    │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-**Environments:**
-- **DEV** (`na-dev-cic`): Auto-deploy, rapid iteration
-- **PROD** (`na-prod-cic`): Strict approvals (2 reviewers), separated init/plan/apply steps
+**Key principle**: `actions/src/` is the development workspace. `environments/{env}/actions/` is what each Auth0 tenant actually runs. They are independent copies. Promoting is an explicit, deliberate action.
 
----
+### Example: verify-email action exists in all environments
 
-## Phase 1 — Azure Backend Setup (One-Time)
-
-### 1.1 Create Azure Storage + RM backend
-
-For enterprise, create one storage account and container per environment (dev/prod) or one shared container with separate keys.
-Enable soft-delete and immutable policies on state storage.
-
-### 1.2 Backend Configuration
-
-Update backend configuration in each environment directory:
-
-**`environments/dev/backend.tf`:**
-```hcl
-terraform {
-  backend "azurerm" {
-    key = "auth0/dev/terraform.tfstate"
-  }
-}
+```
+actions/src/verify-email.ts                    ← latest source (v3)
+environments/dev/actions/verify-email.js       ← compiled from v3
+environments/qa/actions/verify-email.js        ← compiled from v2
+environments/val/actions/verify-email.js       ← compiled from v1
+environments/prod/actions/verify-email.js      ← compiled from v1
 ```
 
-**`environments/prod/backend.tf`:**
-```hcl
-terraform {
-  backend "azurerm" {
-    key = "auth0/prod/terraform.tfstate"
-  }
-}
-```
+All four environments have `verify-email.js`, but each is a snapshot from a different point in time. Dev got v3 last week. QA got v2 two weeks ago. Val and prod are still on v1 from the initial release.
 
-> ✅ Enterprise key guideline: use hierarchical key paths that include application + environment + a consistent filename. Your key `auth0/dev/terraform.tfstate` is good and recommended.
-
-### 1.3 Azure RBAC + service principal
-
-Grant the CI service principal or managed identity contributor access to the storage account (and optionally blob data contributor) for each environment.
-
-**Best Practice:** keep separate resource groups/storage accounts for dev/prod or use strict role scoping.
-
----
-
-## Phase 2 — Auth0 Setup
-
-### 2.1 Auth0 M2M Applications (per environment)
-
-For each environment:
-
-* Auth0 Dashboard → Applications → Create Application → **Machine to Machine**
-* Authorize **Auth0 Management API**
-* Grant required scopes (at minimum):
-  * clients, client_grants, connections: read/create/update/delete
-  * branding: read/update
-  * prompts: read/update
-  * actions: read/create/update/delete
-  * attack_protection: read/update
-  * log_streams: read/create/update/delete
-* Record Domain, Client ID, Client Secret
-
-### 2.2 Tenant Naming Convention
-
-Based on pattern `na-dev-cic`:
-
-| Environment | Tenant Domain |
-|-------------|--------------|
-| DEV | `na-dev-cic.us.auth0.com` |
-| PROD | `na-cic.us.auth0.com` |
-
-### 2.3 Environment Variable Files
-
-Create non-committed `*.tfvars.json` files per environment:
+### Workflow: Develop and test a change in dev
 
 ```bash
-cp environments/dev/dev.platform.tfvars.example environments/dev/dev.platform.tfvars.json
+# 1. Edit the TypeScript source
+vim actions/src/verify-email.ts
+
+# 2. Run tests
+cd actions && npm test
+
+# 3. Build
+npm run build
+
+# 4. Promote ONLY to dev
+./scripts/promote-actions.sh dev
+
+# 5. Commit and PR
+git add actions/src/verify-email.ts                # source change
+git add environments/dev/actions/verify-email.js   # dev's compiled copy
+git commit -m "action: update verify-email logic for dev testing"
+
+# 6. PR → merge → pipeline deploys to dev
+#    QA, VAL, PROD are untouched because their actions/*.js files didn't change
 ```
 
-Example `dev.platform.tfvars.json`:
+### Workflow: Promote tested action from dev to qa
+
+```bash
+# After dev testing passes:
+./scripts/promote-actions.sh qa
+
+git add environments/qa/actions/verify-email.js
+git commit -m "action: promote verify-email v3 to qa"
+# PR → merge → pipeline deploys, only qa's action changes
+```
+
+### Workflow: Hotfix directly to prod
+
+```bash
+# 1. Fix the source
+vim actions/src/verify-email.ts
+
+# 2. Build and promote to val + prod only
+cd actions && npm run build
+./scripts/promote-actions.sh val
+./scripts/promote-actions.sh prod
+
+# 3. Commit
+git add actions/src/verify-email.ts
+git add environments/val/actions/verify-email.js
+git add environments/prod/actions/verify-email.js
+git commit -m "action: hotfix verify-email for val/prod"
+
+# Dev and QA keep their existing versions — unaffected
+```
+
+### What about "two versions on main"?
+
+After a dev-only promotion, main has:
+
+```
+actions/src/verify-email.ts                    ← v3 (latest source)
+environments/dev/actions/verify-email.js       ← v3 (promoted)
+environments/qa/actions/verify-email.js        ← v2 (untouched)
+environments/prod/actions/verify-email.js      ← v1 (untouched)
+```
+
+This is correct and intentional. When the pipeline runs, Terraform compares each environment's local `verify-email.js` against what Auth0 has. Since qa's file didn't change, Terraform shows no diff for qa. Only dev sees the update.
+
+The compiled JS files are small (typically 1-5KB per action), so having copies per environment adds negligible repo size. The tradeoff is worth it for the independent promotion control.
+
+---
+
+## How Forms & Flows Work
+
+### Creating a new form
+
+1. **Design in Auth0 Dashboard** → iterate until the UX is right
+2. **Export the form JSON** from the Dashboard UI
+3. **Tokenize the export** to replace real IDs with placeholders:
+
+```bash
+./scripts/tokenize-export.sh ~/Downloads/progressive-profiling.json \
+    environments/dev/forms/
+```
+
+This produces:
+- `progressive-profiling.form.json` — tokenized form (flow IDs → `#FLOW-1#`, etc.)
+- `progressive-profiling.flow-1.json` — extracted flow with vault tokens (`#CONN-1#`)
+- `progressive-profiling.tokens.json` — map showing which token = which real ID
+
+4. **Create `flows.json` entries** mapping logical names to flow files and vault connections:
+
 ```json
 {
-  "environment": "dev",
-  "app_callbacks": [
-    "https://dev-app.yourcompany.com/callback",
-    "https://dev-app.yourcompany.com/silent-callback"
-  ]
+  "pp_update_user": {
+    "name": "Progressive Profiling (Update User)",
+    "file": "forms/progressive-profiling.flow-1.json",
+    "token_replacements": { "#CONN-1#": "auth0_mgmt" }
+  }
 }
 ```
 
-Ensure `*.tfvars` and `*.tfvars.json` are `.gitignore`d.
+5. **Create `forms.json` entries** mapping logical names to form files and flow references:
+
+```json
+{
+  "progressive_profiling": {
+    "name": "Progressive Profiling",
+    "file": "forms/progressive-profiling.form.json",
+    "token_replacements": {
+      "#FLOW-1#": "pp_update_user",
+      "#FLOW-2#": "pp_otp_email",
+      "#FLOW-3#": "pp_verify_otp"
+    }
+  }
+}
+```
+
+6. **Commit and PR** → Terraform creates the vault connections, flows, and forms
+
+### Promoting forms to qa/prod
+
+```bash
+# Copy all form + flow files
+cp environments/dev/forms/progressive-profiling.* environments/qa/forms/
+
+# Copy and adapt the metadata configs
+cp environments/dev/flows.json environments/qa/flows.json
+cp environments/dev/forms.json environments/qa/forms.json
+# Edit vault-connections.json if account_name differs per env
+
+# Commit and PR
+```
+
+### Updating an existing form
+
+1. Edit the form in the Auth0 Dashboard (dev tenant)
+2. Re-export → re-tokenize → overwrite files in `environments/dev/forms/`
+3. Commit and PR → Terraform detects the diff and updates
 
 ---
 
-## Phase 3 — Azure DevOps Configuration
+## M2M Scopes Required
 
-### 3.1 Variable Groups
+Per-environment M2M application needs these Management API scopes:
 
-Create in **Pipelines → Library**.
+- `read:clients`, `create:clients`, `update:clients`
+- `read:client_credentials`, `create:client_credentials`, `update:client_credentials`
+- `read:actions`, `create:actions`, `update:actions`
+- `read:triggers`, `update:triggers`
+- `read:forms`, `create:forms`, `update:forms`
+- `read:flows`, `create:flows`, `update:flows`
+- `read:flows_vault`, `read:flows_vault_connections`, `create:flows_vault_connections`, `update:flows_vault_connections`
 
-**terraform-common-cic** (Shared):
-```
-TF_VERSION = 1.13.3
-NODE_VERSION = 20.x
-```
-
-**na-dev-cic**:
-```
-AUTH0_DOMAIN = na-dev-cic.us.auth0.com
-AUTH0_CLIENT_ID = <dev_client_id>             # mark as secret
-AUTH0_CLIENT_SECRET = <dev_client_secret>     # mark as secret
-ARM_RESOURCE_GROUP = <dev-rg>
-ARM_STORAGE_ACCOUNT = <devstorage>
-ARM_CONTAINER_NAME = <dev-state-container>
-ENVIRONMENT_NAME = na-dev-cic
-```
-
-Repeat for **na-prod-cic** with respective values.
-
-**Note:** Azure credentials are stored in variable groups or Key Vault; prefer Azure Key Vault for enhanced security.
-
-### 3.2 Environments and Approvals
-
-Create Azure DevOps **Environments**:
-
-* `na-dev-cic` - No approval (auto-deploy)
-* `na-prod-cic` - **Required: 2 approvers (tech lead + ops), business hours enforcement**
-
-For `na-prod-cic`, configure:
-- Approvals and checks → Add Approval
-- Minimum 2 approvers
-- Timeout: 7 days
-- Optional: Business hours restriction
-
-### 3.3 GitHub Branch Protection
-
-In GitHub: **Settings → Branches → Add rule** for `main`:
-
-```
-☑ Require a pull request before merging
-  ☑ Require approvals: 2
-  ☑ Dismiss stale pull request approvals when new commits are pushed
-
-☑ Require status checks to pass before merging
-  ☑ Require branches to be up to date before merging
-  Required status checks:
-    - Build (from azure-pipelines.yml)
-    - SecurityScan (from azure-pipelines.yml)
-    - Validate (from azure-pipelines.yml)
-
-☑ Require conversation resolution before merging
-
-☑ Do not allow bypassing the above settings
-
-☑ Restrict who can push to matching branches (DevOps team only)
-```
-
-### 3.4 Pipeline Setup
-
-**Create the unified pipeline:**
-
-1. Navigate to **Pipelines** in Azure DevOps
-2. Click **New Pipeline**
-3. Select **GitHub** as code location
-4. Authorize and select your repository
-5. Choose **Existing Azure Pipelines YAML file**
-6. Select:
-   - **Branch**: `master`
-   - **Path**: `/azure-pipelines.yml`
-7. Click **Continue**
-8. Review the YAML
-9. Click **Save** (or **Run** to test immediately)
-10. Rename pipeline to: `cic-unified` or `Auth0 CI/CD Pipeline`
-
-**Pipeline permissions:**
-- Go to the pipeline → **⋮** → **Settings** → **Triggers**
-- Verify triggers match YAML configuration
-- Ensure pipeline has access to all variable groups and environments
+No `delete:*` scopes — intentional. Combined with `prevent_destroy` in Terraform, this ensures resources cannot be accidentally deleted via pipeline.
 
 ---
 
-## Phase 4 — Local Validation (DEV First)
-
-### 4.1 Verify Terraform Version
-
-```bash
-terraform version
-# Should be >= 1.13.3
-```
-
-### 4.2 Export Credentials (DEV)
-
-```bash
-export AUTH0_DOMAIN="na-dev-cic.us.auth0.com"
-export AUTH0_CLIENT_ID="your_dev_client_id"
-export AUTH0_CLIENT_SECRET="your_dev_client_secret"
-export AZURE_CLIENT_ID="your_azure_sp_client_id"
-export AZURE_CLIENT_SECRET="your_azure_sp_client_secret"
-export AZURE_TENANT_ID="your_azure_tenant_id"
-export AZURE_SUBSCRIPTION_ID="your_azure_subscription_id"
-export ARM_RESOURCE_GROUP="your_dev_rg"
-export ARM_STORAGE_ACCOUNT="your_dev_storage_account"
-export ARM_CONTAINER_NAME="your_dev_state_container"
-```
-
-### 4.3 Build and Test Actions
-
-```bash
-cd actions
-npm ci
-npm run build
-npm test
-```
-
-### 4.4 Initialize and Plan
-
-```bash
-cd ../environments/dev
-terraform init \
-  -backend-config="bucket=terraform-state-cic-dev" \
-  -backend-config="key=terraform.tfstate" \
-  -backend-config="region=us-east-1" \
-  -backend-config="use_lockfile=true" \
-  -backend-config="encrypt=true"
-
-terraform plan -var-file=dev.platform.tfvars.json
-```
-
-Validate planned resources (tenant, branding, connections, actions, trigger bindings, attack protection).
-
-### 4.5 Apply to DEV
-
-```bash
-terraform apply -var-file=dev.platform.tfvars.json
-```
-
-Lock file appears during apply: `terraform.tfstate.tflock` in S3 bucket.
-
-### 4.6 Verify in Auth0
-
-* Branding: Universal Login reflects colors/logo
-* Connections: Passwordless email exists and enabled
-* Actions: Custom action present, deployed, bound to Login flow
-* Attack Protection: Policies enabled
-* Applications: Sample app exists if configured
-
----
-
-## Phase 5 — Pipeline Execution
-
-### 5.1 Development Workflow
-
-**Standard feature development:**
-
-```bash
-# 1. Create feature branch
-git checkout -b feature/add-mfa-enforcement
-
-# 2. Make changes, test locally in DEV
-cd environments/dev
-terraform plan -var-file=dev.platform.tfvars.json
-terraform apply -var-file=dev.platform.tfvars.json
-
-# 3. Commit and push
-git add .
-git commit -m "feat: add MFA enforcement action"
-git push origin feature/add-mfa-enforcement
-
-# 4. Create Pull Request to master
-# Pipeline runs CI stages only:
-#   ✓ Build Actions
-#   ✓ Run Tests  
-#   ✓ Security Scan (Checkov)
-#   ✓ Validate Terraform (all environments)
-#   ✓ Generate plan preview
-#   ✗ Deployment stages DO NOT run (master only)
-
-# 5. Get 2 approvals, address review comments
-
-# 6. Merge PR to master
-# Pipeline runs ALL stages:
-#   ✓ Build Actions (builds once)
-#   ✓ Run Tests
-#   ✓ Security Scan
-#   ✓ Validate Terraform
-#   ✓ CI Summary
-#   ✓ Deploy DEV (automatic, uses Build artifacts)
-#   ✓ Deploy QA (automatic or manual approval)
-#   ⏸ Deploy VAL (manual approval - 1 reviewer)
-#   ⏸ Deploy PROD (manual approval - 2 reviewers)
-```
-
-**Key difference:** The unified pipeline automatically progresses from CI to CD on master. No separate CD pipeline trigger needed.
-
-### 5.2 First Pipeline Run
-
-```bash
-# Add the unified pipeline
-git add azure-pipelines.yml
-git commit -m "ci: add unified CI/CD pipeline"
-git push origin master
-```
-
-**Pipeline execution:**
-1. **CI stages run** (Build, SecurityScan, Validate, CISummary)
-2. **CD stages start automatically** after CI passes
-3. **DEV deploys** immediately (reuses artifacts from Build stage)
-4. **QA deploys** after DEV
-5. **VAL waits** for manual approval
-6. **PROD waits** for manual approval (2 reviewers)
-
-### 5.3 Production Deployment Process
-
-When PROD stage reaches approval gate:
-
-1. **Review artifacts:**
-   - Download `prod-plan.txt` from pipeline artifacts
-   - Review planned changes carefully
-   - Verify DEV, QA, VAL deployed successfully
-
-2. **Approve deployment:**
-   - Navigate to pipeline run → PROD stage
-   - Click **Review**
-   - Both approvers must review and approve
-   - Optionally add approval comments
-
-3. **Monitor deployment:**
-   - Watch PROD deployment progress through steps:
-     - Step 1: Terraform Init
-     - Step 2: Terraform Plan (published for review)
-     - Step 3: Terraform Apply
-     - Step 4: Capture Outputs
-     - Step 5: Deployment Summary
-
-4. **Post-deployment verification:**
-   - Test Auth0 login flow in production
-   - Verify actions execute correctly
-   - Check Auth0 logs for errors
-   - Confirm applications authenticate successfully
-
-### 5.4 Pipeline Artifacts
-
-Each pipeline run produces artifacts:
-
-**CI Artifacts:**
-- `actions-dist` - Built TypeScript actions (reused by all CD stages)
-- `plan-preview-dev` - DEV plan preview (PR only)
-- `security-scan-results` - Checkov security scan results
-
-**CD Artifacts:**
-- `dev-plan` and `dev-outputs` - DEV deployment plan and outputs
-- `qa-artifacts` - QA deployment plan and outputs
-- `val-artifacts` - VAL deployment plan and outputs
-- `prod-plan` and `prod-outputs` - PROD deployment plan and outputs
-
-Download artifacts: Pipeline run → **⋯** → **Artifacts**
-
----
-
-## Operations
-
-### Local Dev Loop
-
-```bash
-# Modify modules or actions
-vim modules/tenant/main.tf
-vim actions/src/verified-email.ts
-
-# Test in DEV locally
-cd environments/dev
-terraform plan -var-file=dev.platform.tfvars.json
-terraform apply -var-file=dev.platform.tfvars.json
-
-# Create PR when ready
-git checkout -b feature/my-changes
-git commit -am "feat: my changes"
-git push origin feature/my-changes
-# Open PR, wait for CI, get reviews, merge
-```
-
-### Adding or Updating Actions
-
-* Implement TypeScript action and tests in `actions/`
-* Build and test: `npm test && npm run build`
-* Update Terraform modules
-* Apply to DEV locally for testing
-* Create PR to trigger CI validation
-* Merge to deploy through pipeline
-
-### Rollbacks
-
-**Preferred Method (Revert and Redeploy):**
-```bash
-# Find the problematic commit
-git log --oneline
-
-# Revert it
-git revert <commit-hash>
-git push origin master
-
-# Pipeline automatically redeploys reverted state
-# Approve through environments as usual
-```
-
-**Emergency Manual Rollback (PROD Only):**
-```bash
-# Checkout last known good commit
-git checkout <last-good-commit>
-
-# Apply to PROD manually
-cd environments/prod
-export AUTH0_DOMAIN="na-cic.us.auth0.com"
-export AUTH0_CLIENT_ID="..."
-export AUTH0_CLIENT_SECRET="..."
-export AWS_ACCESS_KEY_ID="..."
-export AWS_SECRET_ACCESS_KEY="..."
-
-terraform init
-terraform plan -var-file=prod.platform.tfvars.json
-terraform apply -var-file=prod.platform.tfvars.json
-
-# Document in incident report
-# Create proper revert PR afterward
-```
-
-**Targeted Rollback:**
-```bash
-cd environments/prod
-
-# Mark resource for recreation
-terraform taint module.problematic_action.auth0_action.this
-
-# Or destroy specific resource
-terraform destroy -target=module.problematic_action.auth0_action.this
-
-# Then reapply
-terraform apply -var-file=prod.platform.tfvars.json
-```
-
----
-
-## Troubleshooting
-
-### Backend configuration changed
-
-```bash
-cd environments/dev
-terraform init -reconfigure
-```
-
-### Action JS file not found
-
-```bash
-cd actions
-npm ci
-npm run build
-
-# Verify dist/ exists
-ls -la dist/
-```
-
-### State locked / cannot acquire lock
-
-Confirm no concurrent runs and verify backend storage locks in Azure blob container.
-
-```bash
-az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET --tenant $AZURE_TENANT_ID
-az storage blob list --account-name $ARM_STORAGE_ACCOUNT --container-name $ARM_CONTAINER_NAME --prefix "terraform.tfstate"
-```
-
-### Azure credentials error in pipeline
-
-* Verify GitHub secrets contain `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`
-* Test locally:
-  ```bash
-  az login --service-principal -u "$AZURE_CLIENT_ID" -p "$AZURE_CLIENT_SECRET" --tenant "$AZURE_TENANT_ID"
-  az account show --query id -o tsv
-  ```
-* Check RBAC assignment to storage account (Storage Blob Data Contributor or Contributor)
-* Ensure pipeline has permissions to read/write backend container and run Terraform
-
-### Storage account versioning / soft delete
-
-Use Azure Storage soft-delete and immutability for strong enterprise protection.
-
-  --bucket terraform-state-cic-prod \
-  --versioning-configuration Status=Enabled
-```
-
-### Terraform version mismatch
-
-Upgrade to ≥ 1.13.3 and re-run `terraform init`.
-
-### Pipeline not triggering
-
-**CI stages not running on PR:**
-- Verify GitHub-Azure DevOps connection
-- Check trigger paths in YAML match changed files
-- Ensure branch protection requires pipeline status checks
-- Verify Azure Pipelines GitHub App is installed
-
-**CD stages not running after merge:**
-- Verify merge to master completed successfully
-- Check pipeline trigger includes master branch
-- Verify condition: `eq(variables['Build.SourceBranch'], 'refs/heads/master')`
-- Check no path filters exclude your changes
-
-**Pipeline shows "Skipped" for deployment stages:**
-- This is normal for PR builds (deployment only on master)
-- Merge the PR to master to trigger deployments
-
-### Pipeline permission errors
-
-**"The pipeline does not have access to resource":**
-- Click **View** → **Permit** for each resource (variable group, environment)
-- Or pre-authorize:
-  - Library → Variable group → Security → Authorize pipeline
-  - Environments → Environment → Security → Authorize pipeline
-
-### Security scan failures
-
-**Checkov finding issues:**
-```bash
-# Run locally to debug
-pip install checkov
-checkov -d environments/ --framework terraform
-
-# Address findings or suppress with skip annotations in Terraform:
-# resource "auth0_tenant" "main" {
-#   #checkov:skip=CKV_SECRET_6:Acceptable risk - documented in security review
-# }
-```
-
-### Action not enforcing verified email
-
-* Confirm action exists, is deployed, and bound to Login flow in Auth0 Dashboard
-* Inspect Terraform state:
-  ```bash
-  terraform state show module.verified_email_action.auth0_action.post_login
-  terraform state show module.verified_email_action.auth0_trigger_actions.login
-  ```
-* Check Auth0 logs (Monitoring → Logs) for action execution errors
-* Verify action code is correct in `actions/dist/`
-
----
-
-## Security Checklist
-
-* ✅ `*.tfvars` and `*.tfvars.json` with secrets excluded via `.gitignore`
-* ✅ All secrets marked as secret in Azure DevOps variable groups
-* ✅ S3 buckets: encryption enabled, versioning enabled, public access blocked
-* ✅ Separate S3 buckets per environment
-* ✅ Manual approval gates for VAL and PROD (2 approvers for PROD)
-* ✅ Least-privilege IAM for S3 state (preferably separate AWS accounts per environment)
-* ✅ No hardcoded secrets in code or committed to repository
-* ✅ Auth0 M2M applications only (no user context)
-* ✅ GitHub branch protection with required reviews (2) and status checks
-* ✅ Unified pipeline with clear CI/CD separation via conditions
-* ✅ Security scanning with Checkov on every build
-* ✅ Artifact reuse prevents tampering between CI and CD
-
-**Recommended enhancements:**
-- Migrate secrets to Azure Key Vault
-- Enable MFA for Auth0 tenant admins
-- Configure Auth0 log streaming to SIEM
-- Set up AWS CloudTrail for S3 access logging
-- Implement secret rotation policy
-- Regular security audits and access reviews
-
----
-
-## Monitoring and Observability
-
-**Pipeline Monitoring:**
-- Azure DevOps → Pipelines → Analytics
-- Track success rates, duration, failure patterns
-- Set up email/Slack notifications for failures
-
-**Auth0 Monitoring:**
-- Auth0 Dashboard → Monitoring → Logs
-- Review login failures, action errors, anomalies
-- Configure anomaly detection (brute force, breached passwords)
-
-**Terraform State:**
-- Review state files for drift periodically
-- Use `terraform plan` regularly to detect drift
-- Consider scheduled drift detection pipeline
-
-**Recommended Metrics:**
-- Pipeline success rate by environment
-- Average deployment duration
-- Auth0 login success/failure rates
-- Action execution times
-- Terraform state size and complexity
-
----
-
-## Performance Tips
-
-* **Pipeline caching**: npm packages cached automatically (if `package-lock.json` exists)
-* **Local testing**: Use `terraform init -backend=false` for faster iteration
-* **Path filters**: Only relevant paths trigger pipelines (actions/**, modules/**, environments/**)
-* **Parallel validation**: CI stage validates all environments in parallel
-* **Artifact reuse**: CD stages download pre-built artifacts (no rebuild)
-
----
-
-## References
-
-* [Terraform Auth0 Provider](https://registry.terraform.io/providers/auth0/auth0/latest/docs)
-* [Auth0 Management API](https://auth0.com/docs/api/management/v2)
-* [Terraform S3 Backend (S3-native locking)](https://developer.hashicorp.com/terraform/language/backend/s3)
-* [Azure DevOps Environments](https://learn.microsoft.com/en-us/azure/devops/pipelines/process/environments)
-* [Checkov Documentation](https://www.checkov.io/1.Welcome/What%20is%20Checkov.html)
-* [Azure Pipelines YAML Schema](https://learn.microsoft.com/en-us/azure/devops/pipelines/yaml-schema/)
-
----
-
-## Support
-
-* **Pipeline Issues**: Review Azure DevOps pipeline logs and run history
-* **Terraform Issues**: Check Terraform state and apply logs
-* **Auth0 Issues**: Review Auth0 Dashboard logs (Monitoring → Logs)
-* **AWS Issues**: Check S3 bucket permissions and CloudTrail logs
+## Azure DevOps Setup
+
+### Variable Groups
+
+Each environment needs a variable group with:
+
+| Variable | Type | Description |
+|---|---|---|
+| `AUTH0_DOMAIN` | Secret | Auth0 tenant domain |
+| `AUTH0_CLIENT_ID` | Secret | M2M application client ID |
+| `AUTH0_CLIENT_SECRET` | Secret | M2M application client secret |
+| `ARM_TENANT_ID` | Plain | Azure AD tenant ID |
+| `ARM_SUBSCRIPTION_ID` | Plain | Azure subscription ID |
+| `ARM_RESOURCE_GROUP` | Plain | Resource group for state storage |
+| `ARM_STORAGE_ACCOUNT` | Plain | Storage account name |
+| `ARM_CONTAINER_NAME` | Plain | Blob container name |
+
+### Environment Approval Gates
+
+| Environment | Approvals | Branch Control |
+|---|---|---|
+| `na-dev-axon-cic` | None | `refs/heads/main` |
+| `na-qa-axon-cic` | 1 approver | `refs/heads/main` |
+| `na-val-axon-cic` | 1 approver | `refs/heads/main` |
+| `na-prod-axon-cic` | 2+ approvers | `refs/heads/main` |
