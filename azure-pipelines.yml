@@ -2,18 +2,8 @@
 # Azure Pipelines: Auth0 Terraform CI/CD
 # =============================================================================
 # Trunk-based development workflow:
-#   - PR to main  → Build + Validate + Security Scan + Plan Preview
-#   - Merge to main → Build + Validate + Security → Deploy DEV → QA → VAL → PROD
-#
-# Each deployment stage uses plan → approve → apply with artifact traceability.
-# Approvals are configured on Azure DevOps Environments, not in this YAML.
-#
-# Action versioning:
-#   - Versioned snapshots (dist/v1/, dist/v2/) are committed to git
-#   - Each environment pins to a version via actions.json code_file path
-#   - DEV uses dist/latest/ (built fresh each CI run)
-#   - QA/VAL/PROD pin to specific versions (e.g., dist/v1/)
-#   - To release new action code: bump actions/VERSION, CI stamps it
+#   PR to master  -> Build + Validate + Security Scan + Plan Preview
+#   Merge to master -> Build + Validate + Security -> Deploy DEV -> QA -> VAL -> PROD
 # =============================================================================
 
 name: $(Date:yyyyMMdd)$(Rev:.r)
@@ -21,32 +11,15 @@ name: $(Date:yyyyMMdd)$(Rev:.r)
 trigger:
   branches:
     include:
-      - main
-  paths:
-    include:
-      - actions/**
-      - modules/**
-      - catalog/**
-      - environments/**
-      - pipelines/**
-      - root.hcl
-      - azure-pipelines.yml
+      - master
 
 pr:
   branches:
     include:
-      - main
-  paths:
-    include:
-      - actions/**
-      - modules/**
-      - catalog/**
-      - environments/**
-      - pipelines/**
-      - root.hcl
+      - master
 
 pool:
-  vmImage: 'ubuntu-latest'
+  vmImage: ubuntu-latest
 
 variables:
   - group: terraform-common
@@ -64,20 +37,20 @@ stages:
   # Stage 1: Build TypeScript Actions
   # ========================================
   - stage: Build
-    displayName: 'Build Actions'
+    displayName: Build Actions
     jobs:
       - job: BuildActions
-        displayName: 'Build & Version-Stamp Actions'
+        displayName: Build and Test Actions
         steps:
           - task: NodeTool@0
-            displayName: 'Install Node.js $(NODE_VERSION)'
+            displayName: Install Node.js
             inputs:
               versionSpec: $(NODE_VERSION)
 
           - task: Cache@2
-            displayName: 'Cache npm dependencies'
+            displayName: Cache npm dependencies
             inputs:
-              key: 'npm | "$(Agent.OS)" | actions/package-lock.json'
+              key: npm | "$(Agent.OS)" | actions/package-lock.json
               path: actions/node_modules
               restoreKeys: |
                 npm | "$(Agent.OS)"
@@ -87,59 +60,47 @@ stages:
               cd actions
               npm ci
               npm run build
-            displayName: 'Install & Build Actions'
+            displayName: Install and Build Actions
 
           - script: |
               set -euo pipefail
               cd actions
               npm test
-            displayName: 'Run Unit Tests'
+            displayName: Run Unit Tests
 
           - script: |
               set -euo pipefail
               cd actions
               npm run test:coverage || true
-            displayName: 'Generate Coverage Report'
+            displayName: Generate Coverage Report
             continueOnError: true
 
           - task: PublishTestResults@2
-            displayName: 'Publish Test Results'
+            displayName: Publish Test Results
             inputs:
-              testResultsFormat: 'JUnit'
-              testResultsFiles: 'actions/test-results/*.xml'
+              testResultsFormat: JUnit
+              testResultsFiles: actions/test-results/*.xml
               failTaskOnFailedTests: true
             condition: succeededOrFailed()
 
-          # Stamp the build with the version from VERSION file
-          # This creates dist/v{N}/ and dist/latest/
-          - script: |
-              set -euo pipefail
-              cd actions
-              bash scripts/version-stamp.sh
-              echo "Current action version: $(cat VERSION)"
-              echo "Versioned builds available:"
-              ls -la dist/v*/
-            displayName: 'Stamp Versioned Build'
-
-          # Publish the entire dist/ directory (includes v1/, v2/, latest/)
           - publish: actions/dist
             artifact: actions-dist
-            displayName: 'Publish Actions Artifact'
+            displayName: Publish Actions Artifact
 
   # ========================================
-  # Stage 2: Security & Quality Checks
+  # Stage 2: Security and Quality Checks
   # ========================================
   - stage: SecurityScan
-    displayName: 'Security & Quality'
+    displayName: Security and Quality
     dependsOn: Build
     jobs:
       - job: SecurityChecks
-        displayName: 'Security Scanning'
+        displayName: Security Scanning
         steps:
           - script: |
               set -euo pipefail
               pip install checkov --break-system-packages
-            displayName: 'Install Checkov'
+            displayName: Install Checkov
 
           - script: |
               set -euo pipefail
@@ -149,33 +110,33 @@ stages:
                 --output cli \
                 --output junitxml \
                 --output-file-path $(Build.ArtifactStagingDirectory)
-            displayName: 'Checkov: Module Security Scan'
+            displayName: Checkov Module Security Scan
             continueOnError: true
 
           - task: PublishTestResults@2
-            displayName: 'Publish Security Scan Results'
+            displayName: Publish Security Scan Results
             inputs:
-              testResultsFormat: 'JUnit'
-              testResultsFiles: '$(Build.ArtifactStagingDirectory)/results_junitxml.xml'
-              testRunTitle: 'Checkov Security Scan'
+              testResultsFormat: JUnit
+              testResultsFiles: $(Build.ArtifactStagingDirectory)/results_junitxml.xml
+              testRunTitle: Checkov Security Scan
               failTaskOnFailedTests: false
             condition: succeededOrFailed()
 
       - job: LintCheck
-        displayName: 'Linting & Formatting'
+        displayName: Linting and Formatting
         steps:
           - task: TerraformInstaller@1
-            displayName: 'Install Terraform $(TF_VERSION)'
+            displayName: Install Terraform
             inputs:
               terraformVersion: $(TF_VERSION)
 
           - script: |
               set -euo pipefail
               terraform fmt -check -recursive -diff modules/
-            displayName: 'Terraform Format Check'
+            displayName: Terraform Format Check
 
           - task: NodeTool@0
-            displayName: 'Install Node.js'
+            displayName: Install Node.js
             inputs:
               versionSpec: $(NODE_VERSION)
 
@@ -184,21 +145,21 @@ stages:
               cd actions
               npm ci
               npm run lint || echo "ESLint warnings found (non-blocking)"
-            displayName: 'ESLint Check'
+            displayName: ESLint Check
             continueOnError: true
 
   # ========================================
-  # Stage 3: Terraform Validation (all envs)
+  # Stage 3: Terraform Validation
   # ========================================
   - stage: Validate
-    displayName: 'Terraform Validation'
+    displayName: Terraform Validation
     dependsOn: SecurityScan
     jobs:
       - job: ValidateAll
-        displayName: 'Validate All Modules'
+        displayName: Validate All Modules
         steps:
           - task: TerraformInstaller@1
-            displayName: 'Install Terraform $(TF_VERSION)'
+            displayName: Install Terraform
             inputs:
               terraformVersion: $(TF_VERSION)
 
@@ -209,34 +170,25 @@ stages:
                 cd "$mod"
                 terraform init -backend=false -input=false -no-color
                 terraform validate -no-color
-                echo "✓ $mod passed"
                 cd ../..
               done
-            displayName: 'Validate All Modules'
+            displayName: Validate All Modules
 
   # ========================================
   # Stage 4: Plan Preview (PR only)
   # ========================================
   - stage: PlanPreview
-    displayName: 'Plan Preview (PR)'
+    displayName: Plan Preview (PR)
     dependsOn: Validate
     condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'))
     jobs:
       - job: PlanDev
-        displayName: 'Preview DEV Plan'
+        displayName: Preview DEV Plan
         variables:
           - group: na-dev-axon-cic
         steps:
-          - download: current
-            artifact: actions-dist
-
-          - script: |
-              set -euo pipefail
-              mkdir -p actions/dist
-              cp -r "$(Pipeline.Workspace)/actions-dist/"* actions/dist/
-            displayName: 'Restore Actions Build'
-
           - task: TerraformInstaller@1
+            displayName: Install Terraform
             inputs:
               terraformVersion: $(TF_VERSION)
 
@@ -245,7 +197,7 @@ stages:
               curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v$(TG_VERSION)/terragrunt_linux_amd64" \
                 -o /usr/local/bin/terragrunt
               chmod +x /usr/local/bin/terragrunt
-            displayName: 'Install Terragrunt'
+            displayName: Install Terragrunt
 
           - script: |
               set -euo pipefail
@@ -253,7 +205,7 @@ stages:
               terragrunt stack generate 2>/dev/null || true
               terragrunt run --all -- plan -input=false -no-color -lock=false \
                 2>&1 | tee "$(Build.ArtifactStagingDirectory)/dev-plan-preview.txt"
-            displayName: 'Generate DEV Plan Preview'
+            displayName: Generate DEV Plan Preview
             env:
               AUTH0_DOMAIN: $(AUTH0_DOMAIN)
               AUTH0_CLIENT_ID: $(AUTH0_CLIENT_ID)
@@ -266,13 +218,13 @@ stages:
 
           - publish: $(Build.ArtifactStagingDirectory)
             artifact: plan-preview-dev
-            displayName: 'Publish DEV Plan Preview'
+            displayName: Publish DEV Plan Preview
 
   # ========================================
   # Stage 5: CI Summary
   # ========================================
   - stage: CISummary
-    displayName: 'CI Summary'
+    displayName: CI Summary
     dependsOn:
       - Build
       - SecurityScan
@@ -280,10 +232,9 @@ stages:
     condition: succeededOrFailed()
     jobs:
       - job: Summary
-        displayName: 'Pipeline Summary'
+        displayName: Pipeline Summary
         steps:
           - script: |
-              set -euo pipefail
               echo "========================================"
               echo "CI Pipeline Summary"
               echo "========================================"
@@ -292,16 +243,19 @@ stages:
               echo "Commit: $(Build.SourceVersion)"
               echo "Trigger: $(Build.Reason)"
               echo "========================================"
-            displayName: 'Display Summary'
+            displayName: Display Summary
 
   # ========================================
-  # CD STAGES (main branch only, sequential)
+  # CD STAGES (master branch only, sequential)
   # ========================================
-
   - stage: DeployDev
-    displayName: 'Deploy to DEV'
-    dependsOn: [Build, SecurityScan, Validate, CISummary]
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    displayName: Deploy to DEV
+    dependsOn:
+      - Build
+      - SecurityScan
+      - Validate
+      - CISummary
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
     jobs:
       - template: pipelines/templates/deploy-environment.yml
         parameters:
@@ -312,7 +266,7 @@ stages:
           isProduction: false
 
   - stage: DeployQA
-    displayName: 'Deploy to QA'
+    displayName: Deploy to QA
     dependsOn: DeployDev
     condition: succeeded()
     jobs:
@@ -325,7 +279,7 @@ stages:
           isProduction: false
 
   - stage: DeployVal
-    displayName: 'Deploy to VAL'
+    displayName: Deploy to VAL
     dependsOn: DeployQA
     condition: succeeded()
     jobs:
@@ -338,7 +292,7 @@ stages:
           isProduction: false
 
   - stage: DeployProd
-    displayName: 'Deploy to PROD'
+    displayName: Deploy to PROD
     dependsOn: DeployVal
     condition: succeeded()
     jobs:
