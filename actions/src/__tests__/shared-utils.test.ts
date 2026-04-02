@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDisplayName, isValidEmail, safeJsonParse } from '../shared-utils';
+import { formatDisplayName, isValidEmail, safeJsonParse } from '../modules/shared-utils';
 
 describe('Shared Utils Module', () => {
   describe('formatDisplayName', () => {

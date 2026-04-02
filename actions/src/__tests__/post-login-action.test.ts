@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Event, PostLoginAPI } from '@auth0/actions/post-login/v3';
-import { onExecutePostLogin } from '../post-login-action';
+import { onExecutePostLogin } from '../actions/post-login-action';
 
 describe('Post Login Action - Enforce Verified Email', () => {
   let mockApi: Pick<PostLoginAPI, 'access'>;

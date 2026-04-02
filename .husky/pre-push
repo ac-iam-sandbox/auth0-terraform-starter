@@ -8,16 +8,10 @@ echo "╔═══════════════════════�
 echo "║  Pre-push checks                                ║"
 echo "╚══════════════════════════════════════════════════╝"
 
-# 1. Run all tests
+# 1. Run all tests (actions + modules in one suite)
 echo ""
-echo "→ Running action tests..."
+echo "→ Running tests..."
 cd actions && npm test && cd ..
-
-if [ -d "action-modules/src" ] && ls action-modules/src/*.ts 1>/dev/null 2>&1; then
-  echo ""
-  echo "→ Running action module tests..."
-  cd action-modules && npm test && cd ..
-fi
 
 # 2. Terraform format check
 echo ""
@@ -37,7 +31,7 @@ echo ""
 echo "→ Validating JSON schemas..."
 node scripts/validate-schemas.mjs
 
-# 5. Manifest integrity (only if manifests exist)
+# 5. Manifest integrity
 echo ""
 echo "→ Verifying promotion manifests..."
 node scripts/verify-manifests.mjs

@@ -50,47 +50,25 @@ stages:
               versionSpec: $(NODE_VERSION)
 
           - task: Cache@2
-            displayName: Cache npm (actions)
+            displayName: Cache npm
             inputs:
-              key: npm-actions | "$(Agent.OS)" | actions/package-lock.json
+              key: npm | "$(Agent.OS)" | actions/package-lock.json
               path: actions/node_modules
               restoreKeys: |
-                npm-actions | "$(Agent.OS)"
-
-          - task: Cache@2
-            displayName: Cache npm (action-modules)
-            inputs:
-              key: npm-modules | "$(Agent.OS)" | action-modules/package-lock.json
-              path: action-modules/node_modules
-              restoreKeys: |
-                npm-modules | "$(Agent.OS)"
+                npm | "$(Agent.OS)"
 
           - script: |
               set -euo pipefail
               cd actions
               npm ci
               npm run build
-            displayName: Build Actions
+            displayName: Build Actions & Modules
 
           - script: |
               set -euo pipefail
               cd actions
               npm test
-            displayName: Test Actions
-
-          - script: |
-              set -euo pipefail
-              if [ -f action-modules/package.json ]; then
-                cd action-modules
-                npm ci
-                if ls src/*.ts 1>/dev/null 2>&1; then
-                  npm run build
-                  npm test
-                else
-                  echo "No action module source files yet — skipping"
-                fi
-              fi
-            displayName: Build & Test Action Modules
+            displayName: Run Tests
 
           - script: |
               set -euo pipefail
@@ -103,9 +81,7 @@ stages:
             displayName: Publish Test Results
             inputs:
               testResultsFormat: JUnit
-              testResultsFiles: |
-                actions/test-results/*.xml
-                action-modules/test-results/*.xml
+              testResultsFiles: actions/test-results/*.xml
               failTaskOnFailedTests: true
             condition: succeededOrFailed()
 
@@ -167,17 +143,7 @@ stages:
               cd actions
               npm ci
               npm run lint || echo "ESLint warnings found (non-blocking)"
-            displayName: ESLint Check (Actions)
-            continueOnError: true
-
-          - script: |
-              set -euo pipefail
-              if [ -f action-modules/package.json ]; then
-                cd action-modules
-                npm ci
-                npm run lint || echo "ESLint warnings found (non-blocking)"
-              fi
-            displayName: ESLint Check (Action Modules)
+            displayName: ESLint Check
             continueOnError: true
 
           - script: |

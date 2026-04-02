@@ -39,7 +39,6 @@ backend.tf
 # =============================================================================
 node_modules/
 actions/dist/
-action-modules/dist/
 *.tsbuildinfo
 test-results/
 coverage/

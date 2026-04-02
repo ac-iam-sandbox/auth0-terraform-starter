@@ -9,18 +9,15 @@
  *   npm run promote -- --env prod --all
  *   npm run promote -- --env dev --module shared-utils
  *   npm run promote -- --env qa --module shared-utils --action post-login-action
+ *   npm run promote -- --env dev --all --dry-run
  *
- * What it does:
- *   1. Verifies dist/ has compiled output (runs build if needed)
- *   2. Computes SHA256 of each compiled file
- *   3. Copies files to environments/{env}/actions/ or action-modules/
- *   4. Updates manifest.json with SHA, git commit, timestamp, promoter
- *   5. Prints a summary of what changed
+ * Source layout (single build):
+ *   actions/dist/actions/*.js   ← compiled Auth0 Actions
+ *   actions/dist/modules/*.js   ← compiled Auth0 Action Modules
  *
- * The manifest provides full traceability:
- *   - Which version of which action is in which environment
- *   - Who promoted it and when
- *   - The git SHA it was built from
+ * Target layout (per environment):
+ *   environments/{env}/actions/*.js          + manifest.json
+ *   environments/{env}/action-modules/*.js   + manifest.json
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, copyFileSync } from 'fs';
@@ -125,15 +122,18 @@ function parseArgs(argv) {
 // Promote logic
 // ---------------------------------------------------------------------------
 
-function promoteFiles(distDir, targetDir, selectedFiles, manifestPath, type, gitSha, gitUser, dryRun) {
+function promoteFiles(distDir, targetDir, selectedFiles, manifestPath, sourceSubdir, dryRun, gitSha, gitUser) {
   if (!existsSync(distDir)) {
-    console.error(`  ERROR: ${distDir} does not exist. Run build first.`);
+    // No compiled files for this type — skip silently if --all, error if explicit
+    if (selectedFiles.length === 0) return [];
+    console.error(`  ERROR: ${distDir} does not exist. Run 'cd actions && npm run build' first.`);
     process.exit(1);
   }
 
   const availableFiles = readdirSync(distDir).filter(f => f.endsWith('.js'));
 
   if (availableFiles.length === 0) {
+    if (selectedFiles.length === 0) return [];
     console.error(`  ERROR: No compiled .js files in ${distDir}`);
     process.exit(1);
   }
@@ -141,10 +141,8 @@ function promoteFiles(distDir, targetDir, selectedFiles, manifestPath, type, git
   // Determine which files to promote
   let filesToPromote;
   if (selectedFiles.length === 0) {
-    // --all: promote everything
     filesToPromote = availableFiles;
   } else {
-    // Selective: validate requested files exist
     filesToPromote = [];
     for (const name of selectedFiles) {
       const fileName = name.endsWith('.js') ? name : `${name}.js`;
@@ -157,10 +155,8 @@ function promoteFiles(distDir, targetDir, selectedFiles, manifestPath, type, git
     }
   }
 
-  // Ensure target directory exists
   mkdirSync(targetDir, { recursive: true });
 
-  // Load existing manifest
   const manifest = loadManifest(manifestPath);
   const now = new Date().toISOString();
   const changes = [];
@@ -171,7 +167,6 @@ function promoteFiles(distDir, targetDir, selectedFiles, manifestPath, type, git
     const newSha = sha256(srcPath);
     const logicalName = basename(fileName, '.js');
 
-    // Check if this is actually a change
     const existingEntry = manifest[logicalName];
     if (existingEntry && existingEntry.sha256 === newSha) {
       console.log(`  ○ ${fileName} — unchanged (sha: ${newSha.substring(0, 12)}…)`);
@@ -183,7 +178,7 @@ function promoteFiles(distDir, targetDir, selectedFiles, manifestPath, type, git
     } else {
       copyFileSync(srcPath, destPath);
       manifest[logicalName] = {
-        source_file: `${logicalName}.ts`,
+        source_file: `${sourceSubdir}/${logicalName}.ts`,
         compiled_file: fileName,
         sha256: newSha,
         git_sha: gitSha,
@@ -197,7 +192,7 @@ function promoteFiles(distDir, targetDir, selectedFiles, manifestPath, type, git
 
   if (!dryRun && changes.length > 0) {
     saveManifest(manifestPath, manifest);
-    console.log(`  ✓ manifest.json updated (${changes.length} ${type}(s))`);
+    console.log(`  ✓ manifest.json updated (${changes.length} file(s))`);
   }
 
   return changes;
@@ -211,9 +206,8 @@ function main() {
   const rootDir = resolve(import.meta.dirname, '..');
   const args = parseArgs(process.argv.slice(2));
 
-  // Validate
   if (!args.env) {
-    console.error('Usage: npm run promote -- --env <environment> [--action <name>...] [--module <name>...] [--all] [--dry-run]');
+    console.error('Usage: npm run promote -- --env <environment> [--action <n>...] [--module <n>...] [--all] [--dry-run]');
     console.error('');
     console.error('Examples:');
     console.error('  npm run promote -- --env dev --action post-login-action');
@@ -261,76 +255,64 @@ function main() {
     process.exit(1);
   }
 
-  let totalChanges = 0;
-
-  // Build if needed (unless --skip-build)
+  // Build if dist doesn't exist
   if (!args.skipBuild) {
-    const hasActions = args.all || args.actions.length > 0;
-    const hasModules = args.all || args.modules.length > 0;
-
-    if (hasActions) {
-      const actionsDistDir = join(rootDir, 'actions', 'dist');
-      if (!existsSync(actionsDistDir) || readdirSync(actionsDistDir).filter(f => f.endsWith('.js')).length === 0) {
-        console.log('  Building actions...');
-        try {
-          execSync('npm run build', { cwd: join(rootDir, 'actions'), stdio: 'pipe' });
-          console.log('  ✓ Actions built successfully');
-        } catch (err) {
-          console.error('  ERROR: Actions build failed');
-          console.error(err.stderr?.toString() || err.message);
-          process.exit(1);
-        }
+    const actionsDistDir = join(rootDir, 'actions', 'dist');
+    if (!existsSync(actionsDistDir)) {
+      console.log('  Building actions & modules...');
+      try {
+        execSync('npm run build', { cwd: join(rootDir, 'actions'), stdio: 'pipe' });
+        console.log('  ✓ Build successful');
+        console.log('');
+      } catch (err) {
+        console.error('  ERROR: Build failed');
+        console.error(err.stderr?.toString() || err.message);
+        process.exit(1);
       }
     }
-
-    if (hasModules) {
-      const modulesDistDir = join(rootDir, 'action-modules', 'dist');
-      const hasModuleSrc = existsSync(join(rootDir, 'action-modules', 'src')) &&
-        readdirSync(join(rootDir, 'action-modules', 'src')).some(f => f.endsWith('.ts') && !f.includes('.test.'));
-      if (hasModuleSrc && (!existsSync(modulesDistDir) || readdirSync(modulesDistDir).filter(f => f.endsWith('.js')).length === 0)) {
-        console.log('  Building action modules...');
-        try {
-          execSync('npm run build', { cwd: join(rootDir, 'action-modules'), stdio: 'pipe' });
-          console.log('  ✓ Action modules built successfully');
-        } catch (err) {
-          console.error('  ERROR: Action modules build failed');
-          console.error(err.stderr?.toString() || err.message);
-          process.exit(1);
-        }
-      }
-    }
-    console.log('');
   }
+
+  let totalChanges = 0;
 
   // Promote actions
   if (args.all || args.actions.length > 0) {
     console.log('  Actions:');
-    const actionsDistDir = join(rootDir, 'actions', 'dist');
-    const actionsTargetDir = join(envDir, 'actions');
-    const actionsManifestPath = join(actionsTargetDir, 'manifest.json');
-    const actionChanges = promoteFiles(
-      actionsDistDir, actionsTargetDir, args.all ? [] : args.actions,
-      actionsManifestPath, 'action', gitSha, gitUser, args.dryRun
+    const changes = promoteFiles(
+      join(rootDir, 'actions', 'dist', 'actions'),
+      join(envDir, 'actions'),
+      args.all ? [] : args.actions,
+      join(envDir, 'actions', 'manifest.json'),
+      'actions',
+      args.dryRun, gitSha, gitUser
     );
-    totalChanges += actionChanges.length;
+    totalChanges += changes.length;
+    if (changes.length === 0 && (args.all || args.actions.length > 0)) {
+      console.log('  (no changes)');
+    }
     console.log('');
   }
 
-  // Promote action modules
+  // Promote modules
   if (args.all || args.modules.length > 0) {
-    const modulesDistDir = join(rootDir, 'action-modules', 'dist');
+    const modulesDistDir = join(rootDir, 'actions', 'dist', 'modules');
     if (existsSync(modulesDistDir) && readdirSync(modulesDistDir).filter(f => f.endsWith('.js')).length > 0) {
       console.log('  Action Modules:');
-      const modulesTargetDir = join(envDir, 'action-modules');
-      const modulesManifestPath = join(modulesTargetDir, 'manifest.json');
-      const moduleChanges = promoteFiles(
-        modulesDistDir, modulesTargetDir, args.all ? [] : args.modules,
-        modulesManifestPath, 'module', gitSha, gitUser, args.dryRun
+      const changes = promoteFiles(
+        modulesDistDir,
+        join(envDir, 'action-modules'),
+        args.all ? [] : args.modules,
+        join(envDir, 'action-modules', 'manifest.json'),
+        'modules',
+        args.dryRun, gitSha, gitUser
       );
-      totalChanges += moduleChanges.length;
+      totalChanges += changes.length;
+      if (changes.length === 0) {
+        console.log('  (no changes)');
+      }
       console.log('');
     } else if (args.modules.length > 0) {
-      console.error('  ERROR: No compiled action modules found. Build them first.');
+      console.error('  ERROR: No compiled action modules found in actions/dist/modules/');
+      console.error('  Make sure you have .ts files in actions/src/modules/ and run: cd actions && npm run build');
       process.exit(1);
     }
   }

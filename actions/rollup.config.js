@@ -1,19 +1,35 @@
 import typescript from '@rollup/plugin-typescript';
-import { readdirSync } from 'fs';
+import { readdirSync, existsSync } from 'fs';
 import { basename } from 'path';
 
-// Auto-discover all .ts files in src/ (excluding tests)
-const entryPoints = readdirSync('src')
-  .filter(f => f.endsWith('.ts') && !f.includes('.test.') && !f.includes('.spec.'))
-  .map(f => `src/${f}`);
+/**
+ * Auto-discover .ts entry points from src/actions/ and src/modules/.
+ * Outputs compiled JS to dist/actions/ and dist/modules/ respectively.
+ */
+function discoverEntries(subdir) {
+  const dir = `src/${subdir}`;
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter(f => f.endsWith('.ts') && !f.includes('.test.') && !f.includes('.spec.'))
+    .map(f => ({
+      input: `${dir}/${f}`,
+      outputDir: `dist/${subdir}`,
+      outputName: basename(f, '.ts'),
+    }));
+}
 
-export default entryPoints.map(input => ({
+const entries = [
+  ...discoverEntries('actions'),
+  ...discoverEntries('modules'),
+];
+
+export default entries.map(({ input, outputDir, outputName }) => ({
   input,
   output: {
     strict: false,
     format: 'cjs',
-    dir: 'dist',
-    entryFileNames: `${basename(input, '.ts')}.js`,
+    dir: outputDir,
+    entryFileNames: `${outputName}.js`,
     sourcemap: false,
   },
   external: [],

@@ -9,15 +9,9 @@
     "verify:manifests": "node scripts/verify-manifests.mjs",
     "verify:schemas": "node scripts/validate-schemas.mjs",
     "verify": "npm run verify:schemas && npm run verify:manifests",
-    "build:actions": "cd actions && npm run build",
-    "build:modules": "cd action-modules && npm run build",
-    "build": "npm run build:actions && npm run build:modules",
-    "test:actions": "cd actions && npm test",
-    "test:modules": "cd action-modules && npm test",
-    "test": "npm run test:actions && npm run test:modules",
-    "lint:actions": "cd actions && npm run lint",
-    "lint:modules": "cd action-modules && npm run lint",
-    "lint": "npm run lint:actions && npm run lint:modules",
+    "build": "cd actions && npm run build",
+    "test": "cd actions && npm test",
+    "lint": "cd actions && npm run lint",
     "fmt:tf": "terraform fmt -recursive modules/",
     "fmt:check": "terraform fmt -check -recursive -diff modules/"
   },
@@ -31,9 +25,6 @@
     ],
     "actions/src/**/*.ts": [
       "bash -c 'cd actions && npx eslint --fix'"
-    ],
-    "action-modules/src/**/*.ts": [
-      "bash -c 'cd action-modules && npx eslint --fix'"
     ],
     "environments/**/*.json": [
       "node scripts/validate-schemas.mjs"
