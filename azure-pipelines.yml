@@ -22,7 +22,7 @@ pool:
   vmImage: ubuntu-latest
 
 variables:
-  - group: terraform-common
+  - group: terraform-common-axon-cic
   - name: NODE_VERSION
     value: '20.x'
   - name: TF_VERSION
