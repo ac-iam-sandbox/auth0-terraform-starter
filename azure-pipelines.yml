@@ -222,8 +222,10 @@ stages:
           - script: |
               set -euo pipefail
               cd environments/dev
-              terragrunt stack generate 2>/dev/null || true
-              terragrunt run --all -- plan -input=false -no-color -lock=false \
+              terragrunt stack plan \
+                -input=false \
+                -no-color \
+                -lock=false \
                 2>&1 | tee "$(Build.ArtifactStagingDirectory)/dev-plan-preview.txt"
             displayName: Generate DEV Plan Preview
             env:
