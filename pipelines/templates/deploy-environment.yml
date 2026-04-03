@@ -60,9 +60,16 @@ jobs:
                 echo "Terragrunt Plan - ${{ parameters.environmentName }}"
                 echo "========================================"
 
-                terragrunt stack run plan \
-                  --non-interactive \
-                  --no-color
+                # Generate units in-place (no_dot_terragrunt_stack = true)
+                terragrunt stack generate
+
+                # Workaround: terragrunt stack run expects .terragrunt-stack to exist
+                # even when all units use no_dot_terragrunt_stack = true (known bug)
+                mkdir -p .terragrunt-stack
+
+                terragrunt run --all --non-interactive --no-color -- plan \
+                  -input=false \
+                  -lock-timeout=5m \
                   2>&1 | tee "$(Build.ArtifactStagingDirectory)/${{ parameters.environment }}-plan.txt"
               displayName: Terragrunt Plan
               env:
@@ -167,9 +174,13 @@ jobs:
                 echo "Terragrunt Apply - ${{ parameters.environmentName }}"
                 echo "========================================"
 
-                terragrunt stack run apply \
-                  --non-interactive \
-                  --no-color
+                terragrunt stack generate
+                mkdir -p .terragrunt-stack
+
+                terragrunt run --all --non-interactive --no-color -- apply \
+                  -input=false \
+                  -lock-timeout=5m \
+                  -auto-approve
               displayName: Terragrunt Apply
               env:
                 TF_IN_AUTOMATION: '1'
