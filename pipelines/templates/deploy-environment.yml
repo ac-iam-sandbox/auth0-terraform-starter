@@ -60,7 +60,7 @@ jobs:
                 echo "Terragrunt Plan - ${{ parameters.environmentName }}"
                 echo "========================================"
 
-                terragrunt stack plan \
+                terragrunt stack plan -- \
                   -input=false \
                   -no-color \
                   -lock-timeout=5m \
@@ -168,7 +168,7 @@ jobs:
                 echo "Terragrunt Apply - ${{ parameters.environmentName }}"
                 echo "========================================"
 
-                terragrunt stack apply \
+                terragrunt stack apply -- \
                   -input=false \
                   -no-color \
                   -lock-timeout=5m \

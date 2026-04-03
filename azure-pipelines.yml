@@ -222,7 +222,7 @@ stages:
           - script: |
               set -euo pipefail
               cd environments/dev
-              terragrunt stack plan \
+              terragrunt stack plan -- \
                 -input=false \
                 -no-color \
                 -lock=false \
