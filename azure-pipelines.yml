@@ -52,15 +52,14 @@ stages:
           - task: Cache@2
             displayName: Cache npm
             inputs:
-              key: npm | "$(Agent.OS)" | actions/package-lock.json
-              path: actions/node_modules
-              restoreKeys: |
-                npm | "$(Agent.OS)"
+              key: npm-v2 | "$(Agent.OS)" | actions/package-lock.json
+              path: $(Pipeline.Workspace)/.npm
 
           - script: |
               set -euo pipefail
               cd actions
-              npm ci
+              rm -rf node_modules
+              npm ci --cache $(Pipeline.Workspace)/.npm
               npm run build
             displayName: Build Actions & Modules
 
