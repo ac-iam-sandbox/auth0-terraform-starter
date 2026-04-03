@@ -59,7 +59,8 @@ stages:
               set -euo pipefail
               cd actions
               rm -rf node_modules
-              npm ci --cache $(Pipeline.Workspace)/.npm
+              npm ci --include=optional --cache $(Pipeline.Workspace)/.npm
+              node -e "require.resolve('rollup'); require.resolve('@rollup/rollup-linux-x64-gnu')"
               npm run build
             displayName: Build Actions & Modules
 
@@ -143,7 +144,7 @@ stages:
           - script: |
               set -euo pipefail
               cd actions
-              npm ci
+              npm ci --include=optional --cache $(Pipeline.Workspace)/.npm
               npm run lint || echo "ESLint warnings found (non-blocking)"
             displayName: ESLint Check
             continueOnError: true

@@ -4,7 +4,7 @@
 # Single source of truth for provider, backend, and common inputs.
 # All catalog units inherit this via include "root".
 #
-# Backend: AWS S3 with DynamoDB locking
+# Backend: AWS S3 with native lockfile support
 # Provider: Auth0 (credentials via AUTH0_DOMAIN, AUTH0_CLIENT_ID,
 #           AUTH0_CLIENT_SECRET environment variables)
 # =============================================================================
@@ -48,7 +48,7 @@ remote_state {
     key            = "${local.environment}/${replace(path_relative_to_include(), "\\", "/")}/terraform.tfstate"
     region         = get_env("AWS_DEFAULT_REGION", "us-east-1")
     encrypt        = true
-    dynamodb_table = get_env("TF_LOCK_TABLE", "terraform-locks")
+    use_lockfile   = true
   }
 }
 
