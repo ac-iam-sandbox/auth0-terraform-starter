@@ -13,7 +13,8 @@
     "test": "cd actions && npm test",
     "lint": "cd actions && npm run lint",
     "fmt:tf": "terraform fmt -recursive modules/",
-    "fmt:check": "terraform fmt -check -recursive -diff modules/"
+    "fmt:check": "terraform fmt -check -recursive -diff modules/",
+    "promote:journeys": "node scripts/promote-journeys.mjs"
   },
   "devDependencies": {
     "husky": "^9.1.0",

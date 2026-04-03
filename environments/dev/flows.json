@@ -3,19 +3,36 @@
     "name": "Progressive Profiling (Update User)",
     "file": "forms/progressive-profiling.flow-update-user.json",
     "token_replacements": {
-      "#CONN-1#": "auth0_mgmt"
-    }
+      "__TF_VAULT__auth0_mgmt__": "auth0_mgmt"
+    },
+    "env_replacements": {}
   },
   "progressive_profiling_otp_email": {
     "name": "Progressive Profiling (OTP and Send Email)",
     "file": "forms/progressive-profiling.flow-otp-email.json",
-    "token_replacements": {}
+    "token_replacements": {},
+    "env_replacements": {}
   },
   "progressive_profiling_verify_otp": {
     "name": "Progressive Profiling (Verify OTP and Update User)",
     "file": "forms/progressive-profiling.flow-verify-otp.json",
     "token_replacements": {
-      "#CONN-1#": "auth0_mgmt"
-    }
+      "__TF_VAULT__auth0_mgmt__": "auth0_mgmt"
+    },
+    "env_replacements": {}
+  },
+  "email_verification_send_email": {
+    "name": "Verify Email (OTP and Send Email)",
+    "file": "forms/verify-email.flow-send-email.json",
+    "token_replacements": {},
+    "env_replacements": {}
+  },
+  "email_verification_verify_otp": {
+    "name": "Verify Email (Verify OTP and Update User)",
+    "file": "forms/verify-email.flow-verify-otp.json",
+    "token_replacements": {
+      "__TF_VAULT__auth0_mgmt__": "auth0_mgmt"
+    },
+    "env_replacements": {}
   }
 }

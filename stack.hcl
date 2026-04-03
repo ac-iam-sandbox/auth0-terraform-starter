@@ -1,16 +1,6 @@
 # =============================================================================
 # Terragrunt Stack Definition (shared by all environments)
 # =============================================================================
-# This file is symlinked from each environments/{env}/ directory.
-# It reads env.hcl from the environment directory to determine context.
-#
-# Manages: Applications, Actions, Action Modules, Forms, Flows, Vault Connections
-# Does NOT manage: APIs, Connections, Branding, Tenant, Attack Protection
-# (those are managed by the platform team's repo)
-#
-# To deploy:  cd environments/dev && terragrunt run --all -- apply
-# To plan:    cd environments/dev && terragrunt run --all -- plan
-# =============================================================================
 
 locals {
   env_dir            = get_terragrunt_dir()
@@ -22,109 +12,23 @@ locals {
   flows_cfg          = jsondecode(file("${local.env_dir}/flows.json"))
   forms_cfg          = jsondecode(file("${local.env_dir}/forms.json"))
 
-  # Parse each form file ONCE then reference fields
   forms_parsed = {
     for k, v in local.forms_cfg : k => jsondecode(file("${local.env_dir}/${v.file}"))
   }
 
-  # -------------------------------------------------------------------------
-  # Token replacement helper
-  # -------------------------------------------------------------------------
-  # Applies up to 5 chained replace() calls for a map of token→value pairs.
-  # Uses "__noop_N__" as the search string when fewer than 5 tokens exist,
-  # which will never match anything, making the replace() a no-op.
-  # -------------------------------------------------------------------------
-
-  # Resolve flow JSON with token replacements applied
-  flows_resolved = {
-    for k, v in local.flows_cfg : k => {
-      name = v.name
-      actions_json = replace(
-        replace(
-          replace(
-            replace(
-              replace(
-                file("${local.env_dir}/${v.file}"),
-                try(keys(try(v.token_replacements, {}))[0], "__noop_0__"),
-                try(values(try(v.token_replacements, {}))[0], "")
-              ),
-              try(keys(try(v.token_replacements, {}))[1], "__noop_1__"),
-              try(values(try(v.token_replacements, {}))[1], "")
-            ),
-            try(keys(try(v.token_replacements, {}))[2], "__noop_2__"),
-            try(values(try(v.token_replacements, {}))[2], "")
-          ),
-          try(keys(try(v.token_replacements, {}))[3], "__noop_3__"),
-          try(values(try(v.token_replacements, {}))[3], "")
-        ),
-        try(keys(try(v.token_replacements, {}))[4], "__noop_4__"),
-        try(values(try(v.token_replacements, {}))[4], "")
-      )
-    }
-  }
-
-  # Resolve form JSON with token replacements applied
-  # jsonencode() converts parsed object → string, then replace() swaps tokens
-  forms_resolved = {
-    for k, v in local.forms_cfg : k => {
-      name = v.name
-
-      start_json = replace(
-        replace(
-          replace(
-            replace(
-              replace(
-                jsonencode(local.forms_parsed[k]["start"]),
-                try(keys(try(v.token_replacements, {}))[0], "__noop_0__"),
-                try(values(try(v.token_replacements, {}))[0], "")
-              ),
-              try(keys(try(v.token_replacements, {}))[1], "__noop_1__"),
-              try(values(try(v.token_replacements, {}))[1], "")
-            ),
-            try(keys(try(v.token_replacements, {}))[2], "__noop_2__"),
-            try(values(try(v.token_replacements, {}))[2], "")
-          ),
-          try(keys(try(v.token_replacements, {}))[3], "__noop_3__"),
-          try(values(try(v.token_replacements, {}))[3], "")
-        ),
-        try(keys(try(v.token_replacements, {}))[4], "__noop_4__"),
-        try(values(try(v.token_replacements, {}))[4], "")
-      )
-
-      nodes_json = replace(
-        replace(
-          replace(
-            replace(
-              replace(
-                jsonencode(local.forms_parsed[k]["nodes"]),
-                try(keys(try(v.token_replacements, {}))[0], "__noop_0__"),
-                try(values(try(v.token_replacements, {}))[0], "")
-              ),
-              try(keys(try(v.token_replacements, {}))[1], "__noop_1__"),
-              try(values(try(v.token_replacements, {}))[1], "")
-            ),
-            try(keys(try(v.token_replacements, {}))[2], "__noop_2__"),
-            try(values(try(v.token_replacements, {}))[2], "")
-          ),
-          try(keys(try(v.token_replacements, {}))[3], "__noop_3__"),
-          try(values(try(v.token_replacements, {}))[3], "")
-        ),
-        try(keys(try(v.token_replacements, {}))[4], "__noop_4__"),
-        try(values(try(v.token_replacements, {}))[4], "")
-      )
-
-      ending_json       = jsonencode(local.forms_parsed[k]["ending"])
-      style_json        = try(jsonencode(local.forms_parsed[k]["style"]), null)
-      translations_json = try(jsonencode(local.forms_parsed[k]["translations"]), null)
-      language_primary  = try(local.forms_parsed[k]["languages"]["primary"], "en")
-      language_default  = try(local.forms_parsed[k]["languages"]["default"], "en")
-    }
+  form_translations_from_files = {
+    for k, v in local.forms_cfg : k => (
+      length(fileset("${local.env_dir}/i18n/forms/${k}", "*.json")) > 0 ?
+      merge([
+        for filename in fileset("${local.env_dir}/i18n/forms/${k}", "*.json") : {
+          trimsuffix(filename, ".json") = jsondecode(file("${local.env_dir}/i18n/forms/${k}/${filename}"))
+        }
+      ]...) :
+      try(local.forms_parsed[k]["translations"], null)
+    )
   }
 }
 
-# -----------------------------------------------------------------------------
-# Applications
-# -----------------------------------------------------------------------------
 unit "applications" {
   source = "${get_repo_root()}/catalog/units/applications"
   path   = "applications"
@@ -135,9 +39,6 @@ unit "applications" {
   }
 }
 
-# -----------------------------------------------------------------------------
-# Actions (compiled JS from per-env actions/ directory)
-# -----------------------------------------------------------------------------
 unit "actions" {
   source = "${get_repo_root()}/catalog/units/actions"
   path   = "actions"
@@ -152,9 +53,6 @@ unit "actions" {
   }
 }
 
-# -----------------------------------------------------------------------------
-# Action Modules (compiled JS from per-env action-modules/ directory)
-# -----------------------------------------------------------------------------
 unit "action-modules" {
   source = "${get_repo_root()}/catalog/units/action-modules"
   path   = "action-modules"
@@ -169,41 +67,32 @@ unit "action-modules" {
   }
 }
 
-# -----------------------------------------------------------------------------
-# Vault Connections
-# -----------------------------------------------------------------------------
-unit "vault-connections" {
-  source = "${get_repo_root()}/catalog/units/vault-connections"
-  path   = "vault-connections"
+unit "journeys" {
+  source = "${get_repo_root()}/catalog/units/journeys"
+  path   = "journeys"
   no_dot_terragrunt_stack = true
 
   values = {
     vault_connections = local.vault_conns_cfg
-  }
-}
-
-# -----------------------------------------------------------------------------
-# Flows (tokens pre-replaced in locals above)
-# -----------------------------------------------------------------------------
-unit "flows" {
-  source = "${get_repo_root()}/catalog/units/flows"
-  path   = "flows"
-  no_dot_terragrunt_stack = true
-
-  values = {
-    flows = local.flows_resolved
-  }
-}
-
-# -----------------------------------------------------------------------------
-# Forms (parsed once, tokens pre-replaced in locals above)
-# -----------------------------------------------------------------------------
-unit "forms" {
-  source = "${get_repo_root()}/catalog/units/forms"
-  path   = "forms"
-  no_dot_terragrunt_stack = true
-
-  values = {
-    forms = local.forms_resolved
+    flows = {
+      for k, v in local.flows_cfg : k => {
+        name               = v.name
+        actions_json       = file("${local.env_dir}/${v.file}")
+        token_replacements = try(v.token_replacements, {})
+      }
+    }
+    forms = {
+      for k, v in local.forms_cfg : k => {
+        name               = v.name
+        start_json         = jsonencode(local.forms_parsed[k]["start"])
+        nodes_json         = jsonencode(local.forms_parsed[k]["nodes"])
+        ending_json        = jsonencode(local.forms_parsed[k]["ending"])
+        style_json         = try(jsonencode(local.forms_parsed[k]["style"]), null)
+        translations_json  = local.form_translations_from_files[k] != null ? jsonencode(local.form_translations_from_files[k]) : null
+        language_primary   = try(local.forms_parsed[k]["languages"]["primary"], "en")
+        language_default   = try(local.forms_parsed[k]["languages"]["default"], "en")
+        token_replacements = try(v.token_replacements, {})
+      }
+    }
   }
 }

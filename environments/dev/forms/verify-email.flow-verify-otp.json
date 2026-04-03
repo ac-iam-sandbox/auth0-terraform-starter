@@ -1,5 +1,5 @@
 {
-  "name": "Progressive Profiling (Verify OTP and Update User)",
+  "name": "Verify Email (Verify OTP and Update User)",
   "actions": [
     {
       "id": "verify_otp",
@@ -9,7 +9,7 @@
       "allow_failure": false,
       "mask_output": false,
       "params": {
-        "reference": "{{fields.email}}",
+        "reference": "{{context.user.email}}",
         "code": "{{fields.verification_code}}"
       }
     },
@@ -46,9 +46,9 @@
               "user_id": "{{context.user.user_id}}",
               "changes": {
                 "user_metadata": {
-                  "email": "{{ fields.link_email.email }}",
                   "email_verified": true
-                }
+                },
+                "email_verified": true
               }
             }
           }

@@ -3,6 +3,11 @@
     "name": "Auth0",
     "app_id": "AUTH0",
     "account_name": "apac-dev-axon-cic.jp.auth0.com",
-    "setup": {}
+    "setup": {
+      "client_id": "env:AUTH0_MGMT_CLIENT_ID",
+      "client_secret": "env:AUTH0_MGMT_CLIENT_SECRET",
+      "domain": "env:AUTH0_DOMAIN",
+      "type": "OAUTH_APP"
+    }
   }
 }

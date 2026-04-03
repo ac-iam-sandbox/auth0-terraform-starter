@@ -4,13 +4,30 @@
   "type": "object",
   "additionalProperties": {
     "type": "object",
-    "required": ["name", "file"],
+    "required": [
+      "name",
+      "file"
+    ],
     "properties": {
-      "name": { "type": "string", "minLength": 1 },
-      "file": { "type": "string", "pattern": "\\.json$" },
+      "name": {
+        "type": "string",
+        "minLength": 1
+      },
+      "file": {
+        "type": "string",
+        "pattern": "\\.json$"
+      },
       "token_replacements": {
         "type": "object",
-        "additionalProperties": { "type": "string" }
+        "additionalProperties": {
+          "type": "string"
+        }
+      },
+      "env_replacements": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        }
       }
     }
   }

@@ -1,0 +1,81 @@
+{
+  "name": "Account Linking",
+  "languages": {
+    "primary": "en",
+    "default": "en"
+  },
+  "nodes": [
+    {
+      "id": "confirm_verification",
+      "type": "STEP",
+      "coordinates": {
+        "x": 57,
+        "y": -45
+      },
+      "alias": "Confirm Verification",
+      "config": {
+        "components": [
+          {
+            "id": "ext_translation_script",
+            "category": "BLOCK",
+            "type": "HTML",
+            "config": {
+              "content": "<script type=\"text/javascript\">\n  var connectionType = \"{{ fields.connection_type }}\" || \"\";\n  var formType = \"account_linking\";\n\n  applyFormsTranslations(connectionType, formType);\n</script>"
+            }
+          },
+          {
+            "id": "rich_text_9o64",
+            "category": "BLOCK",
+            "type": "RICH_TEXT",
+            "config": {
+              "content": "<p>{{fields.email}}</p><p></p><p>There's an existing MARLÖ account associated with this email. We can connect your {{ fields.connection_type }} account to this MARLÖ account.</p>"
+            }
+          },
+          {
+            "id": "link_email",
+            "category": "FIELD",
+            "type": "CUSTOM",
+            "required": false,
+            "sensitive": false,
+            "config": {
+              "schema": {},
+              "code": "/**\n * Custom Field: Linking Action Buttons\n */\nfunction LinkingActionButtons(context) {\n  const container = document.createElement(\"div\");\n  container.style.display = \"flex\";\n  container.style.gap = \"var(--spacing-2)\";\n  container.style.justifyContent = \"center\";\n  container.style.marginTop = \"var(--spacing-2)\";\n\n  let selectedValue = null;\n\n  function handleAction(value) {\n    selectedValue = value;\n    context.form.goForward();\n  }\n\n  function buildButtons() {\n    const { connection_type } = context.custom.getParams();\n    const confirmLabel = \"Connect with \" + (connection_type || \"Account\");\n\n    const cancelBtn = document.createElement(\"button\");\n    cancelBtn.type = \"button\";\n    cancelBtn.classList.add(\"af-button\", \"af-button--secondary\");\n    cancelBtn.innerText = \"Cancel\";\n    cancelBtn.onclick = function () { handleAction(\"false\"); };\n\n    const confirmBtn = document.createElement(\"button\");\n    confirmBtn.type = \"button\";\n    confirmBtn.classList.add(\"af-button\", \"af-button--primary\");\n    confirmBtn.innerText = confirmLabel;\n    confirmBtn.onclick = function () { handleAction(\"true\"); };\n\n    container.appendChild(cancelBtn);\n    container.appendChild(confirmBtn);\n  }\n\n  return {\n    init() { buildButtons(); return container; },\n    block() { const buttons = container.querySelectorAll(\"button\"); buttons.forEach(function (btn) { btn.disabled = true; }); },\n    unblock() { const buttons = container.querySelectorAll(\"button\"); buttons.forEach(function (btn) { btn.disabled = false; }); },\n    getValue() { if (selectedValue === null) { throw new Error(\"Please select an option to continue.\"); } return selectedValue; }\n  };\n}",
+              "params": {
+                "connection_type": "{{ fields.connection_type }}"
+              }
+            }
+          }
+        ],
+        "next_node": "$ending"
+      }
+    }
+  ],
+  "start": {
+    "hidden_fields": [
+      {
+        "key": "email"
+      },
+      {
+        "key": "connection_type"
+      },
+      {
+        "key": "existing_connection_type"
+      }
+    ],
+    "next_node": "confirm_verification",
+    "coordinates": {
+      "x": -362,
+      "y": 71
+    }
+  },
+  "ending": {
+    "resume_flow": true,
+    "coordinates": {
+      "x": 915,
+      "y": 96
+    }
+  },
+  "style": {
+    "css": "/* Text input override – flat bottom-border style */\n.af-stringField-input {\n    border: none !important;\n    border-bottom: 1px solid #9ca3af !important;\n    border-radius: 0 !important;\n    background-color: #f9fafb !important;\n    padding: 12px !important;\n    font-size: 14px !important;\n    color: #1f2937 !important;\n    transition: background-color 0.2s ease !important;\n}\n\n.af-stringField-input:focus {\n    background-color: #f3f4f6 !important;\n    border-bottom-color: #4b5563 !important;\n    box-shadow: none !important;\n}\n\n.af-stringField-input::placeholder {\n    color: #6b7280 !important;\n}\n\n.af-stringField-input:hover {\n    box-shadow: none !important;\n}\n\n.af-imageBlock-wrapper {\n    text-align: center !important;\n}\n\n.af-imageBlock-wrapper img {\n    margin: 0 auto !important;\n    display: block !important;\n}\n\n.af-form {\n    margin: 0 auto !important;\n}"
+  }
+}

@@ -358,3 +358,45 @@ Each environment needs a variable group with:
 | `na-qa-axon-cic` | 1 approver | `refs/heads/main` |
 | `na-val-axon-cic` | 1 approver | `refs/heads/main` |
 | `na-prod-axon-cic` | 2+ approvers | `refs/heads/main` |
+
+
+## Forms, Flows, and Vault Connections
+
+This repo now manages Auth0 Forms, Flows, and Flow Vault Connections through a single `journeys` unit so token placeholders are resolved to real Terraform resource IDs during apply. This matches the exported-JSON workflow recommended for Auth0 Forms and Flows, where exported Form JSON is stored in the repo and placeholder tokens are replaced at plan/apply time.
+
+### Layout
+
+- `environments/<env>/forms/*.form.json` — raw form definitions
+- `environments/<env>/forms/*.flow-*.json` — raw flow definitions
+- `environments/<env>/i18n/forms/<logical_form>/<lang>.json` — per-form, per-language translations
+- `environments/<env>/forms.json` — form inventory + flow token mappings
+- `environments/<env>/flows.json` — flow inventory + vault token mappings
+- `environments/<env>/vault-connections.json` — vault connection inventory
+
+### Promote only one form to QA/VAL
+
+Use the journeys promotion script to copy a single form and its dependent flows/vaults from one environment to another:
+
+```bash
+npm run promote:journeys -- --from dev --to qa --form progressive_profiling
+npm run promote:journeys -- --from dev --to val --form email_verification
+```
+
+The script follows token dependencies automatically:
+- selected form -> required flows
+- selected flows -> required vault connections
+- selected form -> matching i18n folder
+
+### First-time adoption of existing dashboard resources
+
+If the forms/flows/vault connections already exist in the tenant, import them into Terraform state before the first apply to avoid duplicate-resource errors.
+
+
+## Journeys, i18n, Promotion, and Secrets
+
+See [docs/journeys.md](docs/journeys.md) for the concrete workflow for:
+- adding forms, flows, and vault connections
+- using stable Terraform logical tokens instead of Auth0-created IDs
+- storing per-form translations under `i18n/forms/<logical_form>/<locale>.json`
+- selectively promoting one form and its dependencies between environments
+- resolving action, flow, and vault secrets from Azure DevOps pipeline variables

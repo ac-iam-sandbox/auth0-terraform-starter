@@ -11,7 +11,7 @@
 # This script:
 #   1. Reads an exported form JSON
 #   2. Finds all flow IDs (af_*) and vault connection IDs (ac_*)
-#   3. Replaces them with #FLOW-1#, #FLOW-2#, #CONN-1#, etc.
+#   3. Replaces them with temporary #FLOW-1#, #FLOW-2#, #CONN-1#, etc.
 #   4. Outputs a token map so you know which token = which original ID
 #   5. Splits the export into separate form and flow files
 #
@@ -28,7 +28,7 @@
 #   environments/dev/forms/progressive-profiling.flow-2.json  (flow #FLOW-2#)
 #   environments/dev/forms/progressive-profiling.tokens.json  (token map)
 #
-# After running, update your forms.json to map tokens to Terraform resources.
+# After running, rename the temporary tokens to stable logical placeholders such as __TF_FLOW__email_verification_send_email__ and __TF_VAULT__auth0_mgmt__, then update forms.json / flows.json to map those placeholders to Terraform logical keys.
 # =============================================================================
 set -euo pipefail
 

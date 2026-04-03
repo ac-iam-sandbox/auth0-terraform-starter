@@ -11,7 +11,13 @@
       "params": {
         "if": {
           "operands": [
-            { "operands": ["{{ fields.link_email.needs_verification }}", true], "operator": "EQ" }
+            {
+              "operands": [
+                "{{ fields.link_email.needs_verification }}",
+                true
+              ],
+              "operator": "EQ"
+            }
           ],
           "operator": "AND"
         },
@@ -23,7 +29,7 @@
             "allow_failure": false,
             "mask_output": false,
             "params": {
-              "connection_id": "#CONN-1#",
+              "connection_id": "__TF_VAULT__auth0_mgmt__",
               "user_id": "{{context.user.user_id}}",
               "changes": {
                 "given_name": "{{fields.first_name}}",
@@ -36,9 +42,21 @@
                   "email": "{{ fields.link_email.email }}",
                   "consents": {
                     "marlo_patient_portal": {
-                      "marketing": { "agreed": "{{ functions.toBoolean( fields.marketing_communication ) }}", "version": "1.0", "timestamp": "{{ functions.toTimestamp() }}" },
-                      "terms_and_privacy": { "agreed": "{{ functions.toBoolean( fields.terms_and_privacy ) }}", "version": "1.0", "timestamp": "{{ functions.toTimestamp() }}" },
-                      "health_data_processing": { "agreed": "{{ functions.toBoolean( fields.health_data_processing ) }}", "version": "1.0", "timestamp": "{{ functions.toTimestamp() }}" }
+                      "marketing": {
+                        "agreed": "{{ functions.toBoolean( fields.marketing_communication ) }}",
+                        "version": "1.0",
+                        "timestamp": "{{ functions.toTimestamp() }}"
+                      },
+                      "terms_and_privacy": {
+                        "agreed": "{{ functions.toBoolean( fields.terms_and_privacy ) }}",
+                        "version": "1.0",
+                        "timestamp": "{{ functions.toTimestamp() }}"
+                      },
+                      "health_data_processing": {
+                        "agreed": "{{ functions.toBoolean( fields.health_data_processing ) }}",
+                        "version": "1.0",
+                        "timestamp": "{{ functions.toTimestamp() }}"
+                      }
                     }
                   },
                   "given_name_kana": "{{fields.first_name_kana}}",
@@ -56,7 +74,7 @@
             "allow_failure": false,
             "mask_output": false,
             "params": {
-              "connection_id": "#CONN-1#",
+              "connection_id": "__TF_VAULT__auth0_mgmt__",
               "user_id": "{{context.user.user_id}}",
               "changes": {
                 "given_name": "{{fields.first_name}}",
@@ -68,9 +86,21 @@
                 "user_metadata": {
                   "consents": {
                     "marlo_patient_portal": {
-                      "marketing": { "agreed": "{{ functions.toBoolean( fields.marketing_communication ) }}", "version": "1.0", "timestamp": "{{ functions.toTimestamp() }}" },
-                      "terms_and_privacy": { "agreed": "{{ functions.toBoolean( fields.terms_and_privacy ) }}", "version": "1.0", "timestamp": "{{ functions.toTimestamp() }}" },
-                      "health_data_processing": { "agreed": "{{ functions.toBoolean( fields.health_data_processing ) }}", "version": "1.0", "timestamp": "{{ functions.toTimestamp() }}" }
+                      "marketing": {
+                        "agreed": "{{ functions.toBoolean( fields.marketing_communication ) }}",
+                        "version": "1.0",
+                        "timestamp": "{{ functions.toTimestamp() }}"
+                      },
+                      "terms_and_privacy": {
+                        "agreed": "{{ functions.toBoolean( fields.terms_and_privacy ) }}",
+                        "version": "1.0",
+                        "timestamp": "{{ functions.toTimestamp() }}"
+                      },
+                      "health_data_processing": {
+                        "agreed": "{{ functions.toBoolean( fields.health_data_processing ) }}",
+                        "version": "1.0",
+                        "timestamp": "{{ functions.toTimestamp() }}"
+                      }
                     }
                   },
                   "given_name_kana": "{{fields.first_name_kana}}",

@@ -1,0 +1,39 @@
+{
+  "ending": null,
+  "messages": {
+    "custom": {},
+    "errors": {}
+  },
+  "components": {
+    "last_name": {
+      "config": {
+        "placeholder": "姓\\*"
+      }
+    },
+    "first_name": {
+      "config": {
+        "placeholder": "名\\*"
+      }
+    },
+    "next_button_7qNr": {
+      "config": {
+        "text": "続行する"
+      }
+    },
+    "terms_and_privacy": {
+      "config": {
+        "text": "<p><a href=\"https://apps.myalcon.com/patient-portal/jp/ja/documents/terms-and-conditions\" target=\"_blank\">「利用規約</a>、<a href=\"https://apps.myalcon.com/patient-portal/jp/ja/documents/terms-of-use\" target=\"_blank\">利用条件</a> に同意し、<a href=\"https://preferences.myalcon.com/privacy-notice/?hidebanner=true\" target=\"_blank\">プライバシー通知</a> を読み理解しました。」*</p>"
+      }
+    },
+    "health_data_processing": {
+      "config": {
+        "text": "<p>「アルコンおよび眼科医が、<a href=\"https://apps.myalcon.com/patient-portal/jp/ja/documents/health-related-info\" target=\"_blank\">私の 眼の健康に関する情報</a> を取り扱うことを許可します。」</p>"
+      }
+    },
+    "marketing_communication": {
+      "config": {
+        "text": "<p>「マーケティング情報を受け取ることに同意します。」</p>"
+      }
+    }
+  }
+}
