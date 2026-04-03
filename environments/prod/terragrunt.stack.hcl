@@ -5,12 +5,17 @@
 locals {
   env_dir            = get_terragrunt_dir()
   env                = read_terragrunt_config("${local.env_dir}/env.hcl").locals.environment
+  journey_dir        = "${local.env_dir}/journeys"
   applications       = jsondecode(file("${local.env_dir}/applications.json"))
   actions_cfg        = jsondecode(file("${local.env_dir}/actions.json"))
   action_modules_cfg = try(jsondecode(file("${local.env_dir}/action-modules.json")), {})
-  vault_conns_cfg    = jsondecode(file("${local.env_dir}/vault-connections.json"))
-  flows_cfg          = jsondecode(file("${local.env_dir}/flows.json"))
-  forms_cfg          = jsondecode(file("${local.env_dir}/forms.json"))
+  vault_manifest     = jsondecode(file("${local.journey_dir}/vaults.json"))
+  flows_cfg          = jsondecode(file("${local.journey_dir}/flows.json"))
+  forms_cfg          = jsondecode(file("${local.journey_dir}/forms.json"))
+
+  vault_conns_cfg = {
+    for k, v in local.vault_manifest : k => jsondecode(file("${local.env_dir}/${v.file}"))
+  }
 
   forms_parsed = {
     for k, v in local.forms_cfg : k => jsondecode(file("${local.env_dir}/${v.file}"))
@@ -18,10 +23,10 @@ locals {
 
   form_translations_from_files = {
     for k, v in local.forms_cfg : k => (
-      length(fileset("${local.env_dir}/i18n/forms/${k}", "*.json")) > 0 ?
+      length(fileset("${local.journey_dir}/i18n/forms/${k}", "*.json")) > 0 ?
       merge([
-        for filename in fileset("${local.env_dir}/i18n/forms/${k}", "*.json") : {
-          trimsuffix(filename, ".json") = jsondecode(file("${local.env_dir}/i18n/forms/${k}/${filename}"))
+        for filename in fileset("${local.journey_dir}/i18n/forms/${k}", "*.json") : {
+          trimsuffix(filename, ".json") = jsondecode(file("${local.journey_dir}/i18n/forms/${k}/${filename}"))
         }
       ]...) :
       try(local.forms_parsed[k]["translations"], null)
@@ -87,6 +92,8 @@ unit "journeys" {
   values = {
     vault_connections = {
       for k, v in local.vault_conns_cfg : k => merge(v, {
+        account_name = try(v.account_name, null) != null && startswith(v.account_name, "env:") ? get_env(trimprefix(v.account_name, "env:"), "") : try(v.account_name, null)
+        environment  = try(v.environment, null) != null && startswith(v.environment, "env:") ? get_env(trimprefix(v.environment, "env:"), "") : try(v.environment, null)
         setup = {
           for setup_key, setup_value in try(v.setup, {}) :
           setup_key => (startswith(setup_value, "env:") ? get_env(trimprefix(setup_value, "env:"), "") : setup_value)

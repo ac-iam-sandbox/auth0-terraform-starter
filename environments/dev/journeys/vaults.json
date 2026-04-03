@@ -1,0 +1,6 @@
+{
+  "auth0_mgmt": {
+    "name": "Auth0",
+    "file": "journeys/vaults/auth0-mgmt.vault.json"
+  }
+}

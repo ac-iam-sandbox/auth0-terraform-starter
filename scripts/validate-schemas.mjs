@@ -1,25 +1,9 @@
 #!/usr/bin/env node
 
-/**
- * validate-schemas.mjs — Validate environment JSON configs against schemas
- *
- * Uses lightweight JSON Schema draft-07 validation without external deps.
- * Checks structure, required fields, and enum values.
- *
- * Usage:
- *   node scripts/validate-schemas.mjs                    # validate all envs
- *   node scripts/validate-schemas.mjs --env dev          # validate one env
- *   node scripts/validate-schemas.mjs --file actions.json  # validate specific file type
- */
-
 import { readFileSync, existsSync } from 'fs';
 import { resolve, join } from 'path';
 
 const rootDir = resolve(import.meta.dirname, '..');
-
-// ---------------------------------------------------------------------------
-// Minimal JSON Schema validator (no external deps)
-// ---------------------------------------------------------------------------
 
 function validateValue(value, schema, path = '') {
   const errors = [];
@@ -51,17 +35,13 @@ function validateValue(value, schema, path = '') {
 
   if (schema.required && typeof value === 'object' && !Array.isArray(value)) {
     for (const req of schema.required) {
-      if (!(req in value)) {
-        errors.push(`${path}: missing required field "${req}"`);
-      }
+      if (!(req in value)) errors.push(`${path}: missing required field "${req}"`);
     }
   }
 
   if (schema.properties && typeof value === 'object' && !Array.isArray(value)) {
     for (const [key, propSchema] of Object.entries(schema.properties)) {
-      if (key in value) {
-        errors.push(...validateValue(value[key], propSchema, `${path}.${key}`));
-      }
+      if (key in value) errors.push(...validateValue(value[key], propSchema, `${path}.${key}`));
     }
   }
 
@@ -74,36 +54,25 @@ function validateValue(value, schema, path = '') {
   }
 
   if (schema.items && Array.isArray(value)) {
-    value.forEach((item, i) => {
-      errors.push(...validateValue(item, schema.items, `${path}[${i}]`));
-    });
+    value.forEach((item, i) => errors.push(...validateValue(item, schema.items, `${path}[${i}]`)));
   }
 
   return errors;
 }
 
-// ---------------------------------------------------------------------------
-// Config: which files to validate against which schemas
-// ---------------------------------------------------------------------------
-
 const configs = [
   { file: 'actions.json', schema: 'actions.schema.json' },
   { file: 'applications.json', schema: 'applications.schema.json' },
   { file: 'action-modules.json', schema: 'action-modules.schema.json' },
-  { file: 'flows.json', schema: 'flows.schema.json' },
-  { file: 'forms.json', schema: 'forms.schema.json' },
-  { file: 'vault-connections.json', schema: 'vault-connections.schema.json' },
+  { file: 'journeys/flows.json', schema: 'flows.schema.json' },
+  { file: 'journeys/forms.json', schema: 'forms.schema.json' },
+  { file: 'journeys/vaults.json', schema: 'journey-vault-manifest.schema.json' },
 ];
-
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
 
 const args = process.argv.slice(2);
 const envFilter = args.includes('--env') ? args[args.indexOf('--env') + 1] : null;
 const fileFilter = args.includes('--file') ? args[args.indexOf('--file') + 1] : null;
 const envs = envFilter ? [envFilter] : ['dev', 'qa', 'val', 'prod'];
-
 let totalErrors = 0;
 
 for (const env of envs) {

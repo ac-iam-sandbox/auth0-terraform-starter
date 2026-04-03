@@ -20,15 +20,15 @@
 #
 # Example:
 #   ./scripts/tokenize-export.sh ~/Downloads/progressive-profiling-export.json \
-#       environments/dev/forms/
+#       environments/dev/journeys/forms/
 #
 # Output:
-#   environments/dev/forms/progressive-profiling.form.json    (tokenized form)
-#   environments/dev/forms/progressive-profiling.flow-1.json  (flow #FLOW-1#)
-#   environments/dev/forms/progressive-profiling.flow-2.json  (flow #FLOW-2#)
-#   environments/dev/forms/progressive-profiling.tokens.json  (token map)
+#   environments/dev/journeys/forms/progressive-profiling.form.json    (tokenized form)
+#   environments/dev/journeys/forms/progressive-profiling.flow-1.json  (flow #FLOW-1#)
+#   environments/dev/journeys/forms/progressive-profiling.flow-2.json  (flow #FLOW-2#)
+#   environments/dev/journeys/forms/progressive-profiling.tokens.json  (token map)
 #
-# After running, rename the temporary tokens to stable logical placeholders such as __TF_FLOW__email_verification_send_email__ and __TF_VAULT__auth0_mgmt__, then update forms.json / flows.json to map those placeholders to Terraform logical keys.
+# After running, rename the temporary tokens to stable logical placeholders such as __TF_FLOW__email_verification_send_email__ and __TF_VAULT__auth0_mgmt__, then update journeys/forms.json / journeys/flows.json to map those placeholders to Terraform logical keys.
 # =============================================================================
 set -euo pipefail
 
@@ -36,7 +36,7 @@ if [ $# -lt 2 ]; then
   echo "Usage: $0 <exported-form.json> <output-dir>"
   echo ""
   echo "Example:"
-  echo "  $0 ~/Downloads/progressive-profiling-export.json environments/dev/forms/"
+  echo "  $0 ~/Downloads/progressive-profiling-export.json environments/dev/journeys/forms/"
   exit 1
 fi
 
@@ -141,6 +141,6 @@ echo "  Wrote: ${BASENAME}.tokens.json"
 echo ""
 echo "Done! Next steps:"
 echo "  1. Review the tokenized files in $OUTPUT_DIR"
-echo "  2. Add flow entries to your environment's flows.json"
-echo "  3. Map #CONN-N# tokens to vault connection Terraform resource names in flows.json"
+echo "  2. Add flow entries to your environment's journeys/flows.json"
+echo "  3. Map #CONN-N# tokens to vault connection Terraform resource names in journeys/flows.json"
 echo "  4. Run: terragrunt run --all -- plan"

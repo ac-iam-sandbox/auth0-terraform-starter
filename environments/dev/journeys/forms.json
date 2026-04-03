@@ -1,7 +1,7 @@
 {
   "progressive_profiling": {
     "name": "Progressive Profiling",
-    "file": "forms/progressive-profiling.form.json",
+    "file": "journeys/forms/progressive-profiling.form.json",
     "token_replacements": {
       "__TF_FLOW__progressive_profiling_update_user__": "progressive_profiling_update_user",
       "__TF_FLOW__progressive_profiling_otp_email__": "progressive_profiling_otp_email",
@@ -10,7 +10,7 @@
   },
   "email_verification": {
     "name": "Email Verification",
-    "file": "forms/email-verification.form.json",
+    "file": "journeys/forms/email-verification.form.json",
     "token_replacements": {
       "__TF_FLOW__email_verification_send_email__": "email_verification_send_email",
       "__TF_FLOW__email_verification_verify_otp__": "email_verification_verify_otp"
@@ -18,12 +18,12 @@
   },
   "account_linking": {
     "name": "Account Linking",
-    "file": "forms/account-linking.form.json",
+    "file": "journeys/forms/account-linking.form.json",
     "token_replacements": {}
   },
   "post_account_linking": {
     "name": "Post Account Linking",
-    "file": "forms/post-account-linking.form.json",
+    "file": "journeys/forms/post-account-linking.form.json",
     "token_replacements": {}
   }
 }

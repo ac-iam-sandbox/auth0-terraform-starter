@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": {
+    "type": "object",
+    "required": [
+      "name",
+      "file"
+    ],
+    "properties": {
+      "name": {
+        "type": "string",
+        "minLength": 1
+      },
+      "file": {
+        "type": "string",
+        "pattern": "^journeys/vaults/.+\\.vault\\.json$"
+      }
+    },
+    "additionalProperties": false
+  }
+}
