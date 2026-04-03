@@ -60,10 +60,9 @@ jobs:
                 echo "Terragrunt Plan - ${{ parameters.environmentName }}"
                 echo "========================================"
 
-                terragrunt stack plan -- \
-                  -input=false \
-                  -no-color \
-                  -lock-timeout=5m \
+                terragrunt stack run plan \
+                  --non-interactive \
+                  --no-color
                   2>&1 | tee "$(Build.ArtifactStagingDirectory)/${{ parameters.environment }}-plan.txt"
               displayName: Terragrunt Plan
               env:
@@ -168,11 +167,9 @@ jobs:
                 echo "Terragrunt Apply - ${{ parameters.environmentName }}"
                 echo "========================================"
 
-                terragrunt stack apply -- \
-                  -input=false \
-                  -no-color \
-                  -lock-timeout=5m \
-                  -auto-approve
+                terragrunt stack run apply \
+                  --non-interactive \
+                  --no-color
               displayName: Terragrunt Apply
               env:
                 TF_IN_AUTOMATION: '1'
