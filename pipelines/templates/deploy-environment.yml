@@ -1,8 +1,9 @@
 # =============================================================================
-# Template: Deploy Environment (Terragrunt)
+# Template: Deploy Environment (Terragrunt Stacks)
 # =============================================================================
 # Reusable plan -> OPA check -> approve -> apply template.
 # Approvals are configured on Azure DevOps Environments, not here.
+# Backend: AWS S3 with DynamoDB locking
 # =============================================================================
 
 parameters:
@@ -33,6 +34,17 @@ jobs:
           steps:
             - checkout: self
 
+            - download: current
+              artifact: actions-dist
+              displayName: Download CI Build Artifacts
+
+            - script: |
+                set -euo pipefail
+                mkdir -p actions/dist
+                cp -r "$(Pipeline.Workspace)/actions-dist/"* actions/dist/
+                echo "✓ Actions restored from CI build"
+              displayName: Restore Actions Build
+
             - task: TerraformInstaller@1
               displayName: Install Terraform
               inputs:
@@ -40,8 +52,11 @@ jobs:
 
             - script: |
                 set -euo pipefail
-                curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v$(TG_VERSION)/terragrunt_linux_amd64" \
-                  -o /usr/local/bin/terragrunt
+                if ! curl -sSfL "https://github.com/gruntwork-io/terragrunt/releases/download/v$(TG_VERSION)/terragrunt_linux_amd64" \
+                  -o /usr/local/bin/terragrunt; then
+                  echo "ERROR: Failed to download Terragrunt v$(TG_VERSION)"
+                  exit 1
+                fi
                 chmod +x /usr/local/bin/terragrunt
                 terragrunt --version
               displayName: Install Terragrunt
@@ -54,6 +69,40 @@ jobs:
 
             - script: |
                 set -euo pipefail
+
+                echo "========================================"
+                echo "AWS Preflight Checks - ${{ parameters.environmentName }}"
+                echo "========================================"
+
+                echo "Verifying AWS credentials..."
+                CALLER_IDENTITY=$(aws sts get-caller-identity)
+                echo "Authenticated as: $(echo $CALLER_IDENTITY | jq -r .Arn)"
+
+                BUCKET="$(TF_STATE_BUCKET)"
+                echo ""
+                echo "Checking S3 bucket: $BUCKET"
+
+                VERSION_STATUS=$(aws s3api get-bucket-versioning \
+                  --bucket "$BUCKET" \
+                  --query 'Status' \
+                  --output text 2>/dev/null || echo "None")
+
+                if [ "$VERSION_STATUS" != "Enabled" ]; then
+                  echo "WARNING: Bucket versioning is not enabled"
+                fi
+                echo "✓ Versioning: $VERSION_STATUS"
+
+                echo ""
+                echo "✓ All preflight checks passed"
+                echo "========================================"
+              displayName: 'Preflight: Verify AWS & S3'
+              env:
+                AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+                AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+                AWS_DEFAULT_REGION: $(AWS_DEFAULT_REGION)
+
+            - script: |
+                set -euo pipefail
                 cd environments/${{ parameters.environment }}
 
                 echo "========================================"
@@ -63,7 +112,7 @@ jobs:
                 # Generate units in-place (no_dot_terragrunt_stack = true)
                 terragrunt stack generate
 
-                # Workaround: terragrunt stack run expects .terragrunt-stack to exist
+                # Workaround: terragrunt expects .terragrunt-stack to exist
                 # even when all units use no_dot_terragrunt_stack = true (known bug)
                 mkdir -p .terragrunt-stack
 
@@ -77,11 +126,9 @@ jobs:
                 AUTH0_DOMAIN: $(AUTH0_DOMAIN)
                 AUTH0_CLIENT_ID: $(AUTH0_CLIENT_ID)
                 AUTH0_CLIENT_SECRET: $(AUTH0_CLIENT_SECRET)
-                ARM_TENANT_ID: $(ARM_TENANT_ID)
-                ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
-                ARM_RESOURCE_GROUP: $(ARM_RESOURCE_GROUP)
-                ARM_STORAGE_ACCOUNT: $(ARM_STORAGE_ACCOUNT)
-                ARM_CONTAINER_NAME: $(ARM_CONTAINER_NAME)
+                AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+                AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+                AWS_DEFAULT_REGION: $(AWS_DEFAULT_REGION)
 
             - script: |
                 set -euo pipefail
@@ -109,8 +156,9 @@ jobs:
                 AUTH0_DOMAIN: $(AUTH0_DOMAIN)
                 AUTH0_CLIENT_ID: $(AUTH0_CLIENT_ID)
                 AUTH0_CLIENT_SECRET: $(AUTH0_CLIENT_SECRET)
-                ARM_TENANT_ID: $(ARM_TENANT_ID)
-                ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+                AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+                AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+                AWS_DEFAULT_REGION: $(AWS_DEFAULT_REGION)
 
             - publish: $(Build.ArtifactStagingDirectory)
               artifact: ${{ parameters.environment }}-plan
@@ -129,14 +177,26 @@ jobs:
         inputs:
           notifyUsers: |
             your-team@mycompany.com
-          instructions: |
-            ${{ parameters.environmentName }} Deployment Approval
+          ${{ if eq(parameters.isProduction, true) }}:
+            instructions: |
+              🚨 PRODUCTION DEPLOYMENT APPROVAL REQUIRED 🚨
 
-            1. Download the ${{ parameters.environment }}-plan artifact
-            2. Review planned changes and OPA policy results
-            3. Click Resume to proceed
+              1. Download the '${{ parameters.environment }}-plan' artifact
+              2. Thoroughly review planned changes
+              3. Verify changes are expected, tested, and safe for production
+              4. Confirm stakeholders have been notified
+              5. Click Resume ONLY if you approve the deployment
 
-            Artifacts: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts
+              Artifacts: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts
+          ${{ else }}:
+            instructions: |
+              ${{ parameters.environmentName }} Deployment Approval
+
+              1. Download the '${{ parameters.environment }}-plan' artifact
+              2. Review planned changes and OPA policy results
+              3. Click Resume to proceed
+
+              Artifacts: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts
           onTimeout: reject
 
   # ========================================
@@ -154,6 +214,16 @@ jobs:
           steps:
             - checkout: self
 
+            - download: current
+              artifact: actions-dist
+              displayName: Download CI Build Artifacts
+
+            - script: |
+                set -euo pipefail
+                mkdir -p actions/dist
+                cp -r "$(Pipeline.Workspace)/actions-dist/"* actions/dist/
+              displayName: Restore Actions Build
+
             - task: TerraformInstaller@1
               displayName: Install Terraform
               inputs:
@@ -161,7 +231,7 @@ jobs:
 
             - script: |
                 set -euo pipefail
-                curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v$(TG_VERSION)/terragrunt_linux_amd64" \
+                curl -sSfL "https://github.com/gruntwork-io/terragrunt/releases/download/v$(TG_VERSION)/terragrunt_linux_amd64" \
                   -o /usr/local/bin/terragrunt
                 chmod +x /usr/local/bin/terragrunt
               displayName: Install Terragrunt
@@ -187,11 +257,9 @@ jobs:
                 AUTH0_DOMAIN: $(AUTH0_DOMAIN)
                 AUTH0_CLIENT_ID: $(AUTH0_CLIENT_ID)
                 AUTH0_CLIENT_SECRET: $(AUTH0_CLIENT_SECRET)
-                ARM_TENANT_ID: $(ARM_TENANT_ID)
-                ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
-                ARM_RESOURCE_GROUP: $(ARM_RESOURCE_GROUP)
-                ARM_STORAGE_ACCOUNT: $(ARM_STORAGE_ACCOUNT)
-                ARM_CONTAINER_NAME: $(ARM_CONTAINER_NAME)
+                AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+                AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+                AWS_DEFAULT_REGION: $(AWS_DEFAULT_REGION)
 
             - script: |
                 echo "========================================"
@@ -200,3 +268,48 @@ jobs:
                 echo "Commit: $(Build.SourceVersion)"
                 echo "========================================"
               displayName: Deployment Summary
+
+            - script: |
+                set -euo pipefail
+
+                echo "========================================"
+                echo "Smoke Test - ${{ parameters.environmentName }}"
+                echo "========================================"
+
+                HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+                  "https://${AUTH0_DOMAIN}/authorize?response_type=code&client_id=test&redirect_uri=https://example.com")
+
+                if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 500 ]; then
+                  echo "FAIL: Tenant unreachable (HTTP $HTTP_STATUS)"
+                  exit 1
+                fi
+                echo "PASS: Tenant reachable (HTTP $HTTP_STATUS)"
+
+                TOKEN_RESPONSE=$(curl -s --request POST \
+                  --url "https://${AUTH0_DOMAIN}/oauth/token" \
+                  --header 'content-type: application/json' \
+                  --data "{
+                    \"client_id\": \"${AUTH0_CLIENT_ID}\",
+                    \"client_secret\": \"${AUTH0_CLIENT_SECRET}\",
+                    \"audience\": \"https://${AUTH0_DOMAIN}/api/v2/\",
+                    \"grant_type\": \"client_credentials\"
+                  }")
+
+                TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token // empty')
+                if [ -z "$TOKEN" ]; then
+                  echo "FAIL: Failed to obtain Management API token"
+                  echo "$TOKEN_RESPONSE" | jq .
+                  exit 1
+                fi
+                echo "PASS: Management API token obtained"
+
+                echo ""
+                echo "========================================"
+                echo "All smoke tests passed - ${{ parameters.environmentName }}"
+                echo "========================================"
+              displayName: Post-Deploy Smoke Test
+              continueOnError: true
+              env:
+                AUTH0_DOMAIN: $(AUTH0_DOMAIN)
+                AUTH0_CLIENT_ID: $(AUTH0_CLIENT_ID)
+                AUTH0_CLIENT_SECRET: $(AUTH0_CLIENT_SECRET)

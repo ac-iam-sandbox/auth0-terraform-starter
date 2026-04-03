@@ -4,7 +4,7 @@
 # Single source of truth for provider, backend, and common inputs.
 # All catalog units inherit this via include "root".
 #
-# Backend: Azure Blob Storage with Azure AD auth (no storage keys)
+# Backend: AWS S3 with DynamoDB locking
 # Provider: Auth0 (credentials via AUTH0_DOMAIN, AUTH0_CLIENT_ID,
 #           AUTH0_CLIENT_SECRET environment variables)
 # =============================================================================
@@ -36,7 +36,7 @@ generate "provider" {
 }
 
 remote_state {
-  backend = "azurerm"
+  backend = "s3"
 
   generate = {
     path      = "backend.tf"
@@ -44,18 +44,11 @@ remote_state {
   }
 
   config = {
-    resource_group_name  = get_env("ARM_RESOURCE_GROUP", "")
-    storage_account_name = get_env("ARM_STORAGE_ACCOUNT", "saauth0tf01")
-    container_name       = get_env("ARM_CONTAINER_NAME", "tfstate")
-    key                  = "${local.environment}/${replace(path_relative_to_include(), "\\", "/")}/terraform.tfstate"
-
-    tenant_id       = get_env("ARM_TENANT_ID", "")
-    subscription_id = get_env("ARM_SUBSCRIPTION_ID", "")
-
-    environment = "public"
-
-    use_cli          = true
-    use_azuread_auth = true
+    bucket         = get_env("TF_STATE_BUCKET", "")
+    key            = "${local.environment}/${replace(path_relative_to_include(), "\\", "/")}/terraform.tfstate"
+    region         = get_env("AWS_DEFAULT_REGION", "us-east-1")
+    encrypt        = true
+    dynamodb_table = get_env("TF_LOCK_TABLE", "terraform-locks")
   }
 }
 
