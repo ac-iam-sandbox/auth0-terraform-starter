@@ -13,13 +13,13 @@ locals {
       # Static non-env values
       {
         for sk, sv in lookup(v, "setup", {}) :
-        sk => sv if !can(sv["dev"]) # not an env-keyed map
+        sk => sv if !can(sv["dev"])  # not an env-keyed map
       },
       # Env-specific values
       {
         for sk, sv in lookup(v, "setup", {}) :
         sk => lookup(sv, var.environment, lookup(sv, "default", ""))
-        if can(sv["dev"]) # is an env-keyed map
+        if can(sv["dev"])  # is an env-keyed map
       },
       # Secret values
       {

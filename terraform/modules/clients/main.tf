@@ -40,10 +40,10 @@ resource "auth0_client" "this" {
   dynamic "refresh_token" {
     for_each = lookup(each.value, "refresh_token", null) != null ? [each.value.refresh_token] : []
     content {
-      rotation_type       = refresh_token.value.rotation_type
-      expiration_type     = refresh_token.value.expiration_type
-      token_lifetime      = lookup(refresh_token.value, "token_lifetime", null)
-      idle_token_lifetime = lookup(refresh_token.value, "idle_token_lifetime", null)
+      rotation_type           = refresh_token.value.rotation_type
+      expiration_type         = refresh_token.value.expiration_type
+      token_lifetime          = lookup(refresh_token.value, "token_lifetime", null)
+      idle_token_lifetime     = lookup(refresh_token.value, "idle_token_lifetime", null)
     }
   }
 
