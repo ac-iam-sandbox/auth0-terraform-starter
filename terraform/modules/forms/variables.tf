@@ -6,13 +6,13 @@ variable "environment" {
   type = string
 }
 
-# tflint-ignore: terraform_unused_declarations — will be used when auth0_form resource is implemented
+# tflint-ignore: terraform_unused_declarations
 variable "flow_outputs" {
   type    = map(string)
   default = {}
 }
 
-# tflint-ignore: terraform_unused_declarations — will be used when auth0_form resource is implemented
+# tflint-ignore: terraform_unused_declarations
 variable "vault_connection_outputs" {
   type    = map(string)
   default = {}

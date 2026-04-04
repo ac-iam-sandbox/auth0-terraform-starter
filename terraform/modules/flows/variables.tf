@@ -2,7 +2,7 @@ variable "definitions" {
   type = any
 }
 
-# tflint-ignore: terraform_unused_declarations — will be used when flows add environment filtering
+# tflint-ignore: terraform_unused_declarations
 variable "environment" {
   type = string
 }

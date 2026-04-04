@@ -23,7 +23,7 @@ action_modules:
     environments: [dev, qa, val, prod]
     code: "main.js"
     dependencies:
-      auth0: "PINME"              # TODO: replace with your verified version (e.g. "4.16.0")
+      auth0: "5.5.0"
     secrets_config:
       - "MANAGEMENT_API_DOMAIN"
       - "MANAGEMENT_API_CLIENT_ID"
@@ -36,6 +36,6 @@ action_modules:
     environments: [dev, qa, val, prod]
     code: "main.js"
     dependencies:
-      joi: "PINME"                # TODO: replace with your verified version (e.g. "17.13.3")
-      libphonenumber-js: "PINME"  # TODO: replace with your verified version (e.g. "1.12.8")
+      joi: "18.1.2"
+      libphonenumber-js: "1.12.41"
     secrets_pipeline: []
