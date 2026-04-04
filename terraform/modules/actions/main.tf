@@ -2,7 +2,6 @@
 # https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/trigger_actions
 
 locals {
-  # Resolve code file: testing block → next.js, otherwise → main.js
   resolved_code = {
     for k, v in var.definitions : k => (
       lookup(v, "testing", null) != null
@@ -10,12 +9,13 @@ locals {
     ) ? v.testing.file : v.code
   }
 
-  # Build merged secrets map per action: config values (env-resolved) + pipeline secrets
+  # secrets_config values are keys into env_config
+  # secrets_pipeline values are keys into var.secrets
   resolved_secrets = {
     for k, v in var.definitions : k => merge(
       {
-        for sk, sv in lookup(v, "secrets_config", {}) :
-        sk => lookup(sv, var.environment, lookup(sv, "default", ""))
+        for sk, config_key in lookup(v, "secrets_config", {}) :
+        sk => var.env_config[config_key]
       },
       {
         for secret_name in lookup(v, "secrets_pipeline", []) :
@@ -54,8 +54,6 @@ resource "auth0_action" "this" {
     }
   }
 
-  # Bind action modules — module_id and module_version_id resolved from action_modules output.
-  # Terraform creates modules before actions (dependency graph) so version IDs are available.
   dynamic "modules" {
     for_each = lookup(each.value, "modules", [])
     content {
@@ -65,13 +63,9 @@ resource "auth0_action" "this" {
   }
 }
 
-# Trigger bindings — order matters.
-# Actions are grouped by trigger. The order of actions blocks defines execution order.
-# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/trigger_actions
+# Trigger bindings — YAML order = execution order
 locals {
   triggers = distinct([for k, v in var.definitions : v.trigger])
-
-  # Preserve insertion order from the YAML by using keys()
   actions_by_trigger = {
     for trigger in local.triggers : trigger => [
       for k in keys(var.definitions) : {

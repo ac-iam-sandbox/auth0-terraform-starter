@@ -2,7 +2,6 @@
 # https://registry.terraform.io/providers/auth0/auth0/latest/docs/data-sources/action_module_versions
 
 locals {
-  # Resolve code file: testing block → next.js, otherwise → main.js
   resolved_code = {
     for k, v in var.definitions : k => (
       lookup(v, "testing", null) != null
@@ -10,15 +9,14 @@ locals {
     ) ? v.testing.file : v.code
   }
 
-  # Build merged secrets map per module: config values (env-resolved) + pipeline secrets
+  # secrets_config values are keys into env_config
+  # secrets_pipeline values are keys into var.secrets
   resolved_secrets = {
     for k, v in var.definitions : k => merge(
-      # Config values resolved per environment
       {
-        for sk, sv in lookup(v, "secrets_config", {}) :
-        sk => lookup(sv, var.environment, lookup(sv, "default", ""))
+        for sk, config_key in lookup(v, "secrets_config", {}) :
+        sk => var.env_config[config_key]
       },
-      # Pipeline secrets
       {
         for secret_name in lookup(v, "secrets_pipeline", []) :
         secret_name => var.secrets[secret_name]
@@ -51,7 +49,6 @@ resource "auth0_action_module" "this" {
   }
 }
 
-# Retrieve published versions — actions reference the latest.
 data "auth0_action_module_versions" "this" {
   for_each  = var.definitions
   module_id = auth0_action_module.this[each.key].id

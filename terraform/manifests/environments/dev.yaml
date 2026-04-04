@@ -1,0 +1,23 @@
+# Dev environment configuration.
+# All env-specific non-secret values live here.
+# Resource manifests reference these keys — no env values scattered across files.
+
+# Tenant
+auth0_domain: "apac-dev-axon-cic.jp.auth0.com"
+region: "na"
+
+# Client: Marlo
+marlo_callbacks:   ["https://dev.marlo.example.com/callback"]
+marlo_logout_urls: ["https://dev.marlo.example.com"]
+marlo_web_origins: ["https://dev.marlo.example.com"]
+
+# Vault connection: Auth0 M2M
+vault_auth0_domain:    "apac-dev-axon-cic.jp.auth0.com"
+vault_auth0_client_id: "REPLACE_WITH_DEV_VAULT_CLIENT_ID"
+
+# Action module: Account Linking
+management_api_domain:    "apac-dev-axon-cic.jp.auth0.com"
+management_api_client_id: "gjiDHBkE6ewiGNs8Pc9qQU4vvelZJisM"
+
+# Action: Enrich Signup Profile
+api_base_url: "https://dev2.nonprod-store.myalcon.com"

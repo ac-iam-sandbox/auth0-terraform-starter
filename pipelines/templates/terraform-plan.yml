@@ -14,10 +14,10 @@ jobs:
           environment: ${{ parameters.environment }}
 
       - script: |
-          cd terraform
+          cd $(Build.SourcesDirectory)/terraform
           terraform plan \
             -var="environment=${{ parameters.environment }}" \
-            -out=${{ parameters.environment }}.tfplan \
+            -out=$(Build.ArtifactStagingDirectory)/${{ parameters.environment }}.tfplan \
             -input=false
         displayName: "Terraform plan"
         env:
@@ -27,8 +27,6 @@ jobs:
           AUTH0_DOMAIN: $(AUTH0_DOMAIN)
           AUTH0_CLIENT_ID: $(AUTH0_CLIENT_ID)
           AUTH0_CLIENT_SECRET: $(AUTH0_CLIENT_SECRET)
-          # Secrets assembled from individual masked pipeline variables.
-          # Add new entries here when you add secrets to variable groups.
           TF_VAR_secrets_json: >-
             {
               "VAULT_AUTH0_CLIENT_SECRET": "$(VAULT_AUTH0_CLIENT_SECRET)",
@@ -36,18 +34,19 @@ jobs:
             }
 
       - script: |
-          cd terraform
-          terraform show -no-color ${{ parameters.environment }}.tfplan > $(Build.ArtifactStagingDirectory)/plan-output.txt
+          cd $(Build.SourcesDirectory)/terraform
+          terraform show -no-color $(Build.ArtifactStagingDirectory)/${{ parameters.environment }}.tfplan \
+            > $(Build.ArtifactStagingDirectory)/plan-summary.txt
         displayName: "Generate plan summary"
         env:
           AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
           AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
           AWS_DEFAULT_REGION: $(AWS_DEFAULT_REGION)
 
-      - publish: terraform/${{ parameters.environment }}.tfplan
+      - publish: $(Build.ArtifactStagingDirectory)/${{ parameters.environment }}.tfplan
         artifact: ${{ parameters.region }}-${{ parameters.environment }}-plan
         displayName: "Publish plan artifact"
 
-      - publish: $(Build.ArtifactStagingDirectory)/plan-output.txt
+      - publish: $(Build.ArtifactStagingDirectory)/plan-summary.txt
         artifact: ${{ parameters.region }}-${{ parameters.environment }}-plan-summary
         displayName: "Publish plan summary"

@@ -11,12 +11,12 @@ jobs:
           environment: ${{ parameters.environment }}
 
       - script: |
-          cd terraform
+          cd $(Build.SourcesDirectory)/terraform
           terraform fmt -check -recursive -diff
         displayName: "Terraform format check"
 
       - script: |
-          cd terraform
+          cd $(Build.SourcesDirectory)/terraform
           terraform validate
         displayName: "Terraform validate"
         env:

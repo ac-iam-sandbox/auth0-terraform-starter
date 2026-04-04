@@ -1,12 +1,8 @@
-# Auth0 action module definitions (shared reusable code).
+# Auth0 action module definitions.
 # https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/action_module
 #
-# Same main.js / next.js / testing pattern as actions.
-#
-# Secrets come from two sources:
-#   secrets_config: Non-secret values stored per-env in this manifest
-#                   (Auth0 treats them as module secrets, but they're not sensitive)
-#   secrets_pipeline: Actual secrets injected from pipeline variable group
+# Env-specific config values reference keys from environments/{env}.yaml.
+# Actual secrets come from pipeline variable groups (secrets_pipeline).
 action_modules:
   entry-path-verification:
     name: "Entry Path Verification"
@@ -22,20 +18,10 @@ action_modules:
     code: "main.js"
     dependencies:
       auth0: "latest"
-    # Non-secret config values that Auth0 stores as module secrets.
-    # Per-environment — resolved using var.environment.
+    # Keys reference values in environments/{env}.yaml
     secrets_config:
-      MANAGEMENT_API_DOMAIN:
-        dev:  "apac-dev-axon-cic.jp.auth0.com"
-        qa:   "REPLACE_WITH_QA_DOMAIN"
-        val:  "REPLACE_WITH_VAL_DOMAIN"
-        prod: "REPLACE_WITH_PROD_DOMAIN"
-      MANAGEMENT_API_CLIENT_ID:
-        dev:  "gjiDHBkE6ewiGNs8Pc9qQU4vvelZJisM"
-        qa:   "REPLACE_WITH_QA_CLIENT_ID"
-        val:  "REPLACE_WITH_VAL_CLIENT_ID"
-        prod: "REPLACE_WITH_PROD_CLIENT_ID"
-    # Actual secrets — names only, values from pipeline variable group.
+      MANAGEMENT_API_DOMAIN: "management_api_domain"
+      MANAGEMENT_API_CLIENT_ID: "management_api_client_id"
     secrets_pipeline:
       - "MANAGEMENT_API_CLIENT_SECRET"
 

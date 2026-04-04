@@ -1,36 +1,22 @@
 # Auth0 vault connection, flow, and form definitions.
 # https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/flow_vault_connection
-# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/flow
-# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/form
 #
-# Vault connections store runtime credentials used by flows.
-# Non-secret values (domain, client_id, type) live here in config.
-# Secret values (client_secret) are resolved from var.secrets via pipeline.
-
+# Env-specific config values reference keys from environments/{env}.yaml.
+# Actual secrets come from pipeline variable groups (setup_secrets).
 vault_connections:
   auth0-m2m:
     app_id: "AUTH0"
     name: "Auth0 M2M Connection"
-    # Static setup values — version controlled, not secret.
-    # https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/flow_vault_connection
-    setup:
+    # Static values (not env-specific)
+    setup_static:
       type: "OAUTH_APP"
-      domain:
-        dev:  "axon-dev.us.auth0.com"
-        qa:   "axon-qa.us.auth0.com"
-        val:  "axon-val.us.auth0.com"
-        prod: "axon.us.auth0.com"
-      client_id:
-        dev:  "REPLACE_WITH_DEV_VAULT_CLIENT_ID"
-        qa:   "REPLACE_WITH_QA_VAULT_CLIENT_ID"
-        val:  "REPLACE_WITH_VAL_VAULT_CLIENT_ID"
-        prod: "REPLACE_WITH_PROD_VAULT_CLIENT_ID"
-    # Secret setup values — only key names here, values from pipeline.
+    # Keys reference values in environments/{env}.yaml
+    setup_config:
+      domain: "vault_auth0_domain"
+      client_id: "vault_auth0_client_id"
+    # Actual secrets from pipeline
     setup_secrets:
       client_secret: "VAULT_AUTH0_CLIENT_SECRET"
 
-# Flows and forms — add entries here as you build them.
-# See README for the full forms/flows/vaults workflow.
 flows: {}
-
 forms: {}

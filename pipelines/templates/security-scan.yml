@@ -1,6 +1,3 @@
-# Security scanning and code quality checks.
-# Runs checkov for Terraform security, tflint for Terraform linting,
-# and basic JS syntax validation for action code.
 jobs:
   - job: checkov
     displayName: "Checkov security scan"
@@ -8,14 +5,14 @@ jobs:
       - script: |
           pip install checkov --quiet
           checkov \
-            --directory terraform \
+            --directory $(Build.SourcesDirectory)/terraform \
             --framework terraform \
             --soft-fail \
             --compact \
             --skip-check CKV_TF_1 \
             --output cli \
             --output junitxml \
-            --output-file-path . \
+            --output-file-path $(Build.ArtifactStagingDirectory) \
             || true
         displayName: "Run Checkov"
 
@@ -24,7 +21,7 @@ jobs:
         condition: always()
         inputs:
           testResultsFormat: "JUnit"
-          testResultsFiles: "**/results_junitxml.xml"
+          testResultsFiles: "$(Build.ArtifactStagingDirectory)/results_junitxml.xml"
           testRunTitle: "Checkov security scan"
           failTaskOnMissingResultsFile: false
 
@@ -33,7 +30,7 @@ jobs:
     steps:
       - script: |
           curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
-          cd terraform
+          cd $(Build.SourcesDirectory)/terraform
           tflint --init || true
           tflint --recursive --format compact || true
         displayName: "Run tflint"
@@ -44,7 +41,7 @@ jobs:
       - script: |
           echo "Checking JavaScript syntax..."
           errors=0
-          for f in $(find terraform/actions terraform/action_modules -name "*.js" 2>/dev/null); do
+          for f in $(find $(Build.SourcesDirectory)/terraform/actions $(Build.SourcesDirectory)/terraform/action_modules -name "*.js" 2>/dev/null); do
             node --check "$f" 2>&1 || errors=$((errors + 1))
           done
           if [ $errors -gt 0 ]; then

@@ -1,0 +1,15 @@
+# QA environment configuration.
+auth0_domain: "REPLACE_WITH_QA_DOMAIN"
+region: "na"
+
+marlo_callbacks:   ["https://qa.marlo.example.com/callback"]
+marlo_logout_urls: ["https://qa.marlo.example.com"]
+marlo_web_origins: ["https://qa.marlo.example.com"]
+
+vault_auth0_domain:    "REPLACE_WITH_QA_DOMAIN"
+vault_auth0_client_id: "REPLACE_WITH_QA_VAULT_CLIENT_ID"
+
+management_api_domain:    "REPLACE_WITH_QA_DOMAIN"
+management_api_client_id: "REPLACE_WITH_QA_MGMT_CLIENT_ID"
+
+api_base_url: "REPLACE_WITH_QA_API_URL"

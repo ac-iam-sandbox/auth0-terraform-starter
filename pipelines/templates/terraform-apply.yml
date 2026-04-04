@@ -15,6 +15,9 @@ jobs:
       runOnce:
         deploy:
           steps:
+            # Deployment jobs do not auto-checkout source code.
+            - checkout: self
+
             - template: terraform-init.yml
               parameters:
                 environment: ${{ parameters.environment }}
@@ -23,10 +26,11 @@ jobs:
               artifact: ${{ parameters.region }}-${{ parameters.environment }}-plan
 
             - script: |
-                cd terraform
+                cd $(Build.SourcesDirectory)/terraform
                 terraform apply \
                   -input=false \
-                  $(Pipeline.Workspace)/${{ parameters.region }}-${{ parameters.environment }}-plan/${{ parameters.environment }}.tfplan
+                  $(Pipeline.Workspace)/${{ parameters.region }}-${{ parameters.environment }}-plan/${{ parameters.environment }}.tfplan \
+                  2>&1 | tee $(Build.ArtifactStagingDirectory)/apply-output.txt
               displayName: "Terraform apply"
               env:
                 AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
@@ -35,9 +39,13 @@ jobs:
                 AUTH0_DOMAIN: $(AUTH0_DOMAIN)
                 AUTH0_CLIENT_ID: $(AUTH0_CLIENT_ID)
                 AUTH0_CLIENT_SECRET: $(AUTH0_CLIENT_SECRET)
-                # Must match plan template exactly.
                 TF_VAR_secrets_json: >-
                   {
                     "VAULT_AUTH0_CLIENT_SECRET": "$(VAULT_AUTH0_CLIENT_SECRET)",
                     "MANAGEMENT_API_CLIENT_SECRET": "$(MANAGEMENT_API_CLIENT_SECRET)"
                   }
+
+            - publish: $(Build.ArtifactStagingDirectory)/apply-output.txt
+              artifact: ${{ parameters.region }}-${{ parameters.environment }}-apply-output
+              displayName: "Publish apply output"
+              condition: always()

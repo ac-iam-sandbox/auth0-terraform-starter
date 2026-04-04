@@ -1,18 +1,8 @@
 # Auth0 action definitions.
 # https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/action
-# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/trigger_actions
 #
-# Each action has ONE canonical file: main.js
-# During development, next.js exists alongside it.
-# The "testing" block controls which environments run next.js.
-#
-# Trigger ordering: actions are bound to triggers via auth0_trigger_actions
-# in the order they appear under each trigger group below. The list order
-# in the "actions" block IS the execution order.
-#
-# Secrets follow the same pattern as action modules:
-#   secrets_config:   Non-secret per-env values (URLs, identifiers)
-#   secrets_pipeline: Actual secrets from the pipeline variable group
+# Trigger ordering: order of actions in this file = execution order per trigger.
+# Env-specific config values reference keys from environments/{env}.yaml.
 actions:
   enrich-signup-profile:
     name: "Enrich Signup Profile"
@@ -22,16 +12,10 @@ actions:
     deploy: true
     code: "main.js"
     dependencies: {}
-    # Non-secret config stored as Auth0 action secrets.
+    # Key references value in environments/{env}.yaml
     secrets_config:
-      API_BASE_URL:
-        dev:  "https://dev2.nonprod-store.myalcon.com"
-        qa:   "REPLACE_WITH_QA_API_URL"
-        val:  "REPLACE_WITH_VAL_API_URL"
-        prod: "REPLACE_WITH_PROD_API_URL"
+      API_BASE_URL: "api_base_url"
     secrets_pipeline: []
-    # Module references — Terraform resolves module_id and module_version_id automatically.
-    # Single pipeline run: modules are created/published first (dependency graph), then actions.
     modules:
       - module_key: "entry-path-verification"
       - module_key: "signup-validation"

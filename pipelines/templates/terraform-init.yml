@@ -9,7 +9,7 @@ steps:
       terraformVersion: "1.12.0"
 
   - script: |
-      cd terraform
+      cd $(Build.SourcesDirectory)/terraform
       terraform init \
         -backend-config="bucket=$(TF_STATE_BUCKET)" \
         -backend-config=backends/${{ parameters.environment }}.s3.tfbackend \

@@ -10,7 +10,8 @@ override.tf.json
 *_override.tf.json
 .terraformrc
 terraform.rc
-.terraform.lock.hcl
+# DO NOT ignore .terraform.lock.hcl — it should be committed.
+# https://developer.hashicorp.com/terraform/language/files/dependency-lock
 .DS_Store
 Thumbs.db
 .idea/

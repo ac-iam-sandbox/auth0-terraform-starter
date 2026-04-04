@@ -7,6 +7,10 @@ variable "secrets" {
   sensitive = true
 }
 
+variable "env_config" {
+  type = any
+}
+
 variable "environment" {
   type = string
 }

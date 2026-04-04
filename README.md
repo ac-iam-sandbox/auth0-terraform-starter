@@ -11,7 +11,8 @@ Manages Auth0 CIC (Customer Identity Cloud) tenant configuration across four env
 5. **Two-file versioning.** Each artifact has `main.js` (canonical) and optionally `next.js` (testing). The manifest `testing` block controls routing.
 6. **`prevent_destroy` on critical resources.** Clients and vault connections cannot be accidentally deleted.
 7. **M2M client grants are NOT managed here.** We create client shells and output `client_id` for the grants team.
-8. **Single pipeline run deploys everything.** Terraform's dependency graph creates modules first, publishes them, then creates actions with the correct module version IDs. No need to run the pipeline twice.
+8. **Commit `.terraform.lock.hcl`.** The lock file ensures plan and apply use identical provider versions. Do not gitignore it.
+9. **Single pipeline run deploys everything.** Terraform's dependency graph creates modules first, publishes them, then creates actions with the correct module version IDs. No need to run the pipeline twice.
 
 ## Naming conventions
 
@@ -46,7 +47,11 @@ auth0-infrastructure/
 │   │   └── forms/                                  # auth0_form
 │   │
 │   ├── manifests/
-│   │   ├── environments.yaml                       # Per-env domains
+│   │   ├── environments/                            # Per-env config (one file per env)
+│   │   │   ├── dev.yaml
+│   │   │   ├── qa.yaml
+│   │   │   ├── val.yaml
+│   │   │   └── prod.yaml
 │   │   ├── clients.yaml                            # 6 client definitions
 │   │   ├── actions.yaml                            # Action definitions + module refs
 │   │   ├── action_modules.yaml                     # 3 module definitions
@@ -120,7 +125,7 @@ The pipeline template assembles these into JSON for Terraform automatically. You
 
 | File | Value | What to update |
 |---|---|---|
-| `manifests/environments.yaml` | `auth0_domain` per env | Replace placeholders with real tenant domains |
+| `manifests/environments/{env}.yaml` | `auth0_domain` per env | Replace placeholders with real tenant domains |
 | `manifests/clients.yaml` | Marlo `callbacks`, `logout_urls`, `web_origins` | Replace `example.com` with real domains |
 | `manifests/flows.yaml` | Vault connection `client_id` per env | Replace `REPLACE_WITH_*` with real M2M client IDs |
 | `manifests/action_modules.yaml` | Account linking `MANAGEMENT_API_DOMAIN` per env | Replace placeholders with real tenant domains |
@@ -211,11 +216,8 @@ When you add more actions to a trigger, their order in the YAML file determines 
 
 | Value | Location | Why |
 |---|---|---|
-| Auth0 tenant domain | `manifests/environments.yaml` | Not secret |
-| Client callback URLs | `manifests/clients.yaml` | Not secret, env-specific |
-| Vault connection domain, client_id | `manifests/flows.yaml` | Not secret, env-specific |
-| Module config (MGMT domain, client_id) | `manifests/action_modules.yaml` | Not secret, env-specific |
-| Action config (API_BASE_URL) | `manifests/actions.yaml` | Not secret, env-specific |
+| All env-specific non-secret values | `manifests/environments/{env}.yaml` | One file per env — domains, URLs, client IDs |
+| Resource definitions | `manifests/clients.yaml`, `actions.yaml`, etc. | Env-agnostic — reference keys from env config |
 | Vault connection client_secret | `VAULT_AUTH0_CLIENT_SECRET` in variable group | **Secret** |
 | Module secret (MGMT client_secret) | `MANAGEMENT_API_CLIENT_SECRET` in variable group | **Secret** |
 | Auth0 provider credentials | `AUTH0_*` in variable group | **Secret** |

@@ -1,8 +1,4 @@
 # https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/client
-#
-# Creates auth0_client resources from YAML manifest definitions.
-# M2M client grants are NOT managed here — a separate team handles
-# permissions using the client_id output.
 
 resource "auth0_client" "this" {
   for_each = var.definitions
@@ -13,23 +9,11 @@ resource "auth0_client" "this" {
   oidc_conformant = lookup(each.value, "oidc_conformant", true)
   is_first_party  = lookup(each.value, "is_first_party", true)
 
-  callbacks = lookup(
-    lookup(each.value, "callbacks", {}),
-    var.environment,
-    lookup(lookup(each.value, "callbacks", {}), "default", [])
-  )
-
-  allowed_logout_urls = lookup(
-    lookup(each.value, "logout_urls", {}),
-    var.environment,
-    lookup(lookup(each.value, "logout_urls", {}), "default", [])
-  )
-
-  web_origins = lookup(
-    lookup(each.value, "web_origins", {}),
-    var.environment,
-    lookup(lookup(each.value, "web_origins", {}), "default", null)
-  )
+  # Resolve env-specific values from env_config using the _key fields.
+  # M2M clients without callbacks_key get empty lists.
+  callbacks           = lookup(each.value, "callbacks_key", null) != null ? var.env_config[each.value.callbacks_key] : []
+  allowed_logout_urls = lookup(each.value, "logout_urls_key", null) != null ? var.env_config[each.value.logout_urls_key] : []
+  web_origins         = lookup(each.value, "web_origins_key", null) != null ? var.env_config[each.value.web_origins_key] : null
 
   grant_types = lookup(each.value, "grant_types", [])
 

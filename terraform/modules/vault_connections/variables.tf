@@ -7,6 +7,6 @@ variable "secrets" {
   sensitive = true
 }
 
-variable "environment" {
-  type = string
+variable "env_config" {
+  type = any
 }
