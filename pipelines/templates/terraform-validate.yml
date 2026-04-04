@@ -1,0 +1,22 @@
+# Terraform format check and validation.
+parameters:
+  - name: environment
+    type: string
+
+jobs:
+  - job: validate
+    displayName: "Format & validate"
+    steps:
+      - template: terraform-init.yml
+        parameters:
+          environment: ${{ parameters.environment }}
+
+      - script: |
+          cd terraform
+          terraform fmt -check -recursive -diff
+        displayName: "Terraform format check"
+
+      - script: |
+          cd terraform
+          terraform validate
+        displayName: "Terraform validate"

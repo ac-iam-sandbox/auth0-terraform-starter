@@ -1,12 +1,11 @@
-# Runs on pull requests: validate + plan against dev.
-# Creates one pipeline in Azure DevOps: "CIC - PR Validation"
-# Pipelines → New Pipeline → GitHub → Existing YAML → pipelines/pr-validation.yml
+# Runs on pull requests: security scan + validate + plan against dev.
+# Pipeline name in Azure DevOps: "CIC - PR Validation"
 trigger: none
 
 pr:
   branches:
     include:
-      - main
+      - master
   paths:
     include:
       - terraform/**
@@ -18,18 +17,22 @@ variables:
   - group: na-dev-axon-cic
 
 stages:
-  - stage: Validate
+  - stage: security_and_quality
+    displayName: "Security & quality"
     jobs:
-      - job: validate
-        steps:
-          - template: templates/terraform-init.yml
-            parameters:
-              environment: dev
-          - script: cd terraform && terraform validate
-            displayName: "Terraform validate"
+      - template: templates/security-scan.yml
 
-  - stage: Plan
-    dependsOn: Validate
+  - stage: terraform_validation
+    displayName: "Terraform validation"
+    dependsOn: security_and_quality
+    jobs:
+      - template: templates/terraform-validate.yml
+        parameters:
+          environment: dev
+
+  - stage: terraform_plan
+    displayName: "Terraform plan (dev)"
+    dependsOn: terraform_validation
     jobs:
       - template: templates/terraform-plan.yml
         parameters:

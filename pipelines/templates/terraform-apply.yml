@@ -1,10 +1,5 @@
-# Azure DevOps Environments provide approval gates + exclusive locks.
+# Uses Azure DevOps Environments for approval gates + exclusive locks.
 # https://learn.microsoft.com/en-us/azure/devops/pipelines/process/environments
-#
-# Create environments manually in Azure DevOps:
-#   Pipelines → Environments → New Environment
-#   Names: na-dev-axon-cic, na-qa-axon-cic, na-val-axon-cic, na-prod-axon-cic
-#   Then configure approvals and exclusive locks on each.
 parameters:
   - name: environment
     type: string
@@ -14,7 +9,7 @@ parameters:
 
 jobs:
   - deployment: apply
-    displayName: "Apply (${{ parameters.region }}-${{ parameters.environment }})"
+    displayName: "Apply infrastructure changes"
     environment: ${{ parameters.region }}-${{ parameters.environment }}-axon-cic
     strategy:
       runOnce:

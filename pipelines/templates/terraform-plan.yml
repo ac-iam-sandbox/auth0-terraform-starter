@@ -7,7 +7,7 @@ parameters:
 
 jobs:
   - job: plan
-    displayName: "Plan (${{ parameters.region }}-${{ parameters.environment }})"
+    displayName: "Generate execution plan"
     steps:
       - template: terraform-init.yml
         parameters:
@@ -26,6 +26,15 @@ jobs:
           AUTH0_CLIENT_SECRET: $(AUTH0_CLIENT_SECRET)
           TF_VAR_secrets: $(TF_VAR_secrets)
 
+      - script: |
+          cd terraform
+          terraform show -no-color ${{ parameters.environment }}.tfplan > $(Build.ArtifactStagingDirectory)/plan-output.txt
+        displayName: "Generate plan summary"
+
       - publish: terraform/${{ parameters.environment }}.tfplan
         artifact: ${{ parameters.region }}-${{ parameters.environment }}-plan
         displayName: "Publish plan artifact"
+
+      - publish: $(Build.ArtifactStagingDirectory)/plan-output.txt
+        artifact: ${{ parameters.region }}-${{ parameters.environment }}-plan-summary
+        displayName: "Publish plan summary"

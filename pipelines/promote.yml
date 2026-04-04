@@ -1,6 +1,5 @@
 # Manual trigger to promote to qa, val, or prod.
-# Creates one pipeline in Azure DevOps: "CIC - Promote"
-# Pipelines → New Pipeline → GitHub → Existing YAML → pipelines/promote.yml
+# Pipeline name in Azure DevOps: "CIC - Promote"
 trigger: none
 
 parameters:
@@ -25,15 +24,31 @@ variables:
   - group: ${{ parameters.region }}-${{ parameters.target_environment }}-axon-cic
 
 stages:
-  - stage: Plan
+  - stage: security_and_quality
+    displayName: "Security & quality"
+    jobs:
+      - template: templates/security-scan.yml
+
+  - stage: terraform_validation
+    displayName: "Terraform validation"
+    dependsOn: security_and_quality
+    jobs:
+      - template: templates/terraform-validate.yml
+        parameters:
+          environment: ${{ parameters.target_environment }}
+
+  - stage: terraform_plan
+    displayName: "Terraform plan (${{ parameters.region }}-${{ parameters.target_environment }})"
+    dependsOn: terraform_validation
     jobs:
       - template: templates/terraform-plan.yml
         parameters:
           environment: ${{ parameters.target_environment }}
           region: ${{ parameters.region }}
 
-  - stage: Apply
-    dependsOn: Plan
+  - stage: terraform_apply
+    displayName: "Terraform apply (${{ parameters.region }}-${{ parameters.target_environment }})"
+    dependsOn: terraform_plan
     jobs:
       - template: templates/terraform-apply.yml
         parameters:

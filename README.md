@@ -9,7 +9,7 @@ This repository follows these principles, arrived at through iterative design:
 1. **YAML manifests are the single source of truth.** All resource definitions (clients, actions, flows, vault connections) live in YAML files. Adding a resource means editing a YAML file and opening a PR — no HCL changes required.
 2. **No tfvars files.** The pipeline passes `environment` as a single `-var` flag. All other config lives in YAML manifests with per-environment overrides. This avoids two config systems.
 3. **Secrets are reference names in YAML, values from the pipeline.** Non-secret values (domains, client IDs, URLs) are version-controlled in manifests. Secret values flow from Azure DevOps Variable Groups → `TF_VAR_secrets` environment variable.
-4. **Deployment and promotion are separate.** Merging to `main` auto-deploys to dev only. Higher environments require manually triggering the promote pipeline. This prevents accidental rollout.
+4. **Deployment and promotion are separate.** Merging to `master` auto-deploys to dev only. Higher environments require manually triggering the promote pipeline. This prevents accidental rollout.
 5. **Two-file versioning for actions/modules/forms.** Each artifact has one canonical file (`main.js` / `main.json`). During development, a temporary `next.js` / `next.json` exists alongside it. The manifest `testing` block controls which environments use the new version. Maximum two files per artifact.
 6. **`prevent_destroy` on critical resources.** Clients and vault connections have `lifecycle { prevent_destroy = true }` to prevent accidental deletion.
 7. **M2M client grants are NOT managed here.** We create client shells and output their `client_id`. A separate team manages API permissions (client grants) using these IDs.
@@ -82,7 +82,7 @@ auth0-infrastructure/
 │       └── prod.s3.tfbackend
 │
 └── pipelines/                                  # Azure DevOps pipeline definitions
-    ├── deploy-dev.yml                          # Auto on merge to main → dev only
+    ├── deploy-dev.yml                          # Auto on merge to master → dev only
     ├── promote.yml                             # Manual → qa | val | prod
     ├── pr-validation.yml                       # Auto on PR → validate + plan
     └── templates/
@@ -147,9 +147,9 @@ Configure under each environment's "Approvals and checks" tab.
 
 | Pipeline name | YAML file | Trigger |
 |---|---|---|
-| `CIC - Deploy Dev` | `pipelines/deploy-dev.yml` | Auto (merge to main) |
+| `CIC - Deploy Dev` | `pipelines/deploy-dev.yml` | Auto (merge to master) |
 | `CIC - Promote` | `pipelines/promote.yml` | Manual (env + region params) |
-| `CIC - PR Validation` | `pipelines/pr-validation.yml` | Auto (PR to main) |
+| `CIC - PR Validation` | `pipelines/pr-validation.yml` | Auto (PR to master) |
 
 ---
 
@@ -258,7 +258,7 @@ Forms use the same `main.json`/`next.json`/`testing` pattern.
 4. **Create three pipelines** pointing to the YAML files in `pipelines/`
 5. **Update `manifests/clients.yaml`**: replace Marlo callback URLs with real domains
 6. **Update `manifests/flows.yaml`**: replace `REPLACE_WITH_*_VAULT_CLIENT_ID` with real vault M2M client IDs
-7. **Push to main** → `CIC - Deploy Dev` triggers automatically
+7. **Push to master** → `CIC - Deploy Dev` triggers automatically
 8. **Verify in Auth0 dev tenant**: six clients + one vault connection should exist
 9. **Trigger `CIC - Promote`** for qa, val, prod sequentially
 
