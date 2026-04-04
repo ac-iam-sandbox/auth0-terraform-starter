@@ -1,0 +1,32 @@
+# Auto-deploys to dev on merge to main.
+# Creates one pipeline in Azure DevOps: "CIC - Deploy Dev"
+# Pipelines → New Pipeline → GitHub → Existing YAML → pipelines/deploy-dev.yml
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - terraform/**
+
+pool:
+  vmImage: "ubuntu-latest"
+
+variables:
+  - group: na-dev-axon-cic
+
+stages:
+  - stage: Plan_dev
+    jobs:
+      - template: templates/terraform-plan.yml
+        parameters:
+          environment: dev
+          region: na
+
+  - stage: Apply_dev
+    dependsOn: Plan_dev
+    jobs:
+      - template: templates/terraform-apply.yml
+        parameters:
+          environment: dev
+          region: na

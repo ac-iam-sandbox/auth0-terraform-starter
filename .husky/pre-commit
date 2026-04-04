@@ -1,6 +1,0 @@
-#!/bin/sh
-
-# Pre-commit: fast checks only (formatting, linting, schema validation)
-# Runs via lint-staged for staged files only
-
-npx lint-staged

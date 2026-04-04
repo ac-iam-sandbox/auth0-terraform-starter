@@ -1,0 +1,108 @@
+# Auth0 client definitions.
+# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/client
+#
+# Naming convention: descriptive purpose, no env/region prefix.
+# Auth0 tenants are env-specific — the tenant IS the environment.
+#
+# For M2M clients: we create the shell only. Client grants (API
+# permissions) are managed by a separate team using the client_id output.
+#
+# To add a new client:
+#   1. Add an entry below
+#   2. PR → merge → deploy-dev auto-runs
+#   3. Trigger promote.yml for higher environments
+clients:
+  auth0-actions:
+    name: "Auth0 Actions Service"
+    description: "M2M app for action-based user lookups and account linking"
+    app_type: "non_interactive"
+    oidc_conformant: true
+    grant_types:
+      - "client_credentials"
+    jwt_alg: "RS256"
+    callbacks:
+      default: []
+    logout_urls:
+      default: []
+
+  auth0-vault:
+    name: "Auth0 Vault Service"
+    description: "M2M app for vault connections — email provider config, user password and profile updates"
+    app_type: "non_interactive"
+    oidc_conformant: true
+    grant_types:
+      - "client_credentials"
+    jwt_alg: "RS256"
+    callbacks:
+      default: []
+    logout_urls:
+      default: []
+
+  branded-ui-service:
+    name: "Branded UI Service"
+    description: "M2M app for external management of branding, universal login, and UI customization"
+    app_type: "non_interactive"
+    oidc_conformant: true
+    grant_types:
+      - "client_credentials"
+    jwt_alg: "RS256"
+    callbacks:
+      default: []
+    logout_urls:
+      default: []
+
+  email-template-service:
+    name: "Email Template Service"
+    description: "M2M app for managing email templates"
+    app_type: "non_interactive"
+    oidc_conformant: true
+    grant_types:
+      - "client_credentials"
+    jwt_alg: "RS256"
+    callbacks:
+      default: []
+    logout_urls:
+      default: []
+
+  marlo:
+    name: "Marlo"
+    description: "Single page application for the Marlo frontend"
+    app_type: "spa"
+    oidc_conformant: true
+    grant_types:
+      - "authorization_code"
+      - "refresh_token"
+    jwt_alg: "RS256"
+    callbacks:
+      dev:  ["https://dev.marlo.example.com/callback"]
+      qa:   ["https://qa.marlo.example.com/callback"]
+      val:  ["https://val.marlo.example.com/callback"]
+      prod: ["https://marlo.example.com/callback"]
+    logout_urls:
+      dev:  ["https://dev.marlo.example.com"]
+      qa:   ["https://qa.marlo.example.com"]
+      val:  ["https://val.marlo.example.com"]
+      prod: ["https://marlo.example.com"]
+    web_origins:
+      dev:  ["https://dev.marlo.example.com"]
+      qa:   ["https://qa.marlo.example.com"]
+      val:  ["https://val.marlo.example.com"]
+      prod: ["https://marlo.example.com"]
+    refresh_token:
+      rotation_type: "rotating"
+      expiration_type: "expiring"
+      token_lifetime: 2592000
+      idle_token_lifetime: 1296000
+
+  mulesoft:
+    name: "MuleSoft Integration"
+    description: "M2M app for proxying Management API calls from MuleSoft for user updates"
+    app_type: "non_interactive"
+    oidc_conformant: true
+    grant_types:
+      - "client_credentials"
+    jwt_alg: "RS256"
+    callbacks:
+      default: []
+    logout_urls:
+      default: []

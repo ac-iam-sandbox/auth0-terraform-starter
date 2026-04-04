@@ -1,0 +1,23 @@
+{
+  "version": "4.0.0",
+  "form": {
+    "name": "Verify Email",
+    "languages": { "primary": "en" },
+    "start": { "coordinates": { "x": 0, "y": 0 }, "next_node": "step_oEm5" },
+    "nodes": [
+      { "id": "step_oEm5", "type": "STEP" },
+      { "id": "flow_HtMY", "type": "FLOW", "config": { "flow_id": "#FLOW-1#", "next_node": "step_4lZR" } },
+      { "id": "step_4lZR", "type": "STEP" },
+      { "id": "flow_kP9n", "type": "FLOW", "config": { "flow_id": "#FLOW-2#" } }
+    ],
+    "ending": { "resume_flow": true, "coordinates": { "x": 1250, "y": 0 } }
+  },
+  "flows": {
+    "#FLOW-1#": { "name": "Send Email OTP", "actions": [{ "type": "SENDGRID", "action": "SEND_EMAIL", "params": { "connection_id": "#CONN-1#" } }] },
+    "#FLOW-2#": { "name": "Verify Email OTP", "actions": [{ "type": "AUTH0", "action": "VERIFY_OTP", "params": { "connection_id": "#CONN-2#" } }] }
+  },
+  "connections": {
+    "#CONN-1#": { "app_id": "SENDGRID", "name": "SendGrid" },
+    "#CONN-2#": { "app_id": "AUTH0", "name": "Auth0 Management API" }
+  }
+}
