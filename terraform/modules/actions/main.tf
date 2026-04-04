@@ -1,5 +1,9 @@
 # https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/action
 # https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/trigger_actions
+#
+# Important: auth0_trigger_actions manages ALL bindings for a trigger.
+# Any actions manually bound to the same trigger in the dashboard will
+# be removed by Terraform. Only actions defined here will remain.
 
 locals {
   resolved_code = {
@@ -9,8 +13,6 @@ locals {
     ) ? v.testing.file : v.code
   }
 
-  # secrets_config values are keys into env_config
-  # secrets_pipeline values are keys into var.secrets
   resolved_secrets = {
     for k, v in var.definitions : k => merge(
       {
@@ -63,7 +65,9 @@ resource "auth0_action" "this" {
   }
 }
 
-# Trigger bindings — YAML order = execution order
+# Trigger bindings — YAML order = execution order.
+# auth0_trigger_actions manages ALL bindings for a trigger.
+# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/trigger_actions
 locals {
   triggers = distinct([for k, v in var.definitions : v.trigger])
   actions_by_trigger = {
@@ -84,7 +88,10 @@ resource "auth0_trigger_actions" "this" {
     for_each = each.value
     content {
       id           = auth0_action.this[actions.value.key].id
-      display_name = actions.value.name
+      display_name = auth0_action.this[actions.value.key].name
     }
   }
+
+  # Ensure actions are fully deployed before binding to trigger.
+  depends_on = [auth0_action.this]
 }

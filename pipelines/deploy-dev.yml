@@ -1,5 +1,10 @@
-# Auto-deploys to dev on merge to master.
+# Auto-triggers plan on merge to master. Apply requires approval.
 # Pipeline name in Azure DevOps: "CIC - Deploy Dev"
+#
+# The apply stage uses environment: na-dev-axon-cic which enforces
+# the approval checks configured on that environment.
+# Configure at least a basic approval on na-dev-axon-cic so that
+# the plan output can be reviewed before apply runs.
 trigger:
   branches:
     include:

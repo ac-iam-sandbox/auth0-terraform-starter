@@ -1,5 +1,7 @@
 # https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/action_module
-# https://registry.terraform.io/providers/auth0/auth0/latest/docs/data-sources/action_module_versions
+#
+# When publish = true, the resource creates the module AND publishes a version.
+# The version_id is available directly on the resource — no data source needed.
 
 locals {
   resolved_code = {
@@ -9,8 +11,6 @@ locals {
     ) ? v.testing.file : v.code
   }
 
-  # secrets_config values are keys into env_config
-  # secrets_pipeline values are keys into var.secrets
   resolved_secrets = {
     for k, v in var.definitions : k => merge(
       {
@@ -47,9 +47,4 @@ resource "auth0_action_module" "this" {
       value = secrets.value
     }
   }
-}
-
-data "auth0_action_module_versions" "this" {
-  for_each  = var.definitions
-  module_id = auth0_action_module.this[each.key].id
 }

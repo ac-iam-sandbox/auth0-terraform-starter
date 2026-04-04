@@ -138,10 +138,12 @@ Create manually: Pipelines → Environments → New Environment.
 
 | Environment | Approvals | Locks |
 |---|---|---|
-| `na-dev-axon-cic` | None | Exclusive lock |
+| `na-dev-axon-cic` | At least 1 approver (plan review before apply) | Exclusive lock |
 | `na-qa-axon-cic` | Team lead | Exclusive lock |
 | `na-val-axon-cic` | Release manager | Exclusive lock |
 | `na-prod-axon-cic` | 2 senior engineers, no self-approval | Exclusive lock |
+
+**Every apply requires approval.** The apply stage uses Azure DevOps Environments which enforce approval checks. Plan runs automatically and publishes artifacts. The approver reviews the plan summary artifact, then approves or rejects. Apply uses the exact saved plan from the plan stage — no drift between what was reviewed and what is applied.
 
 ### Pipelines
 
