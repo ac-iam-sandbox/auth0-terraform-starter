@@ -1,20 +1,18 @@
 # Auth0 vault connection, flow, and form definitions.
 # https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/flow_vault_connection
 #
-# Env-specific config values reference keys from environments/{env}.yaml.
-# Actual secrets come from pipeline variable groups (setup_secrets).
+# environments: Optional list of envs where a resource should exist.
+#               Omit = created in all environments.
+
 vault_connections:
   auth0-m2m:
     app_id: "AUTH0"
     name: "Auth0 M2M Connection"
-    # Static values (not env-specific)
     setup_static:
       type: "OAUTH_APP"
-    # Keys reference values in environments/{env}.yaml
     setup_config:
-      domain: "vault_auth0_domain"
-      client_id: "vault_auth0_client_id"
-    # Actual secrets from pipeline
+      - "domain"
+      - "client_id"
     setup_secrets:
       client_secret: "VAULT_AUTH0_CLIENT_SECRET"
 

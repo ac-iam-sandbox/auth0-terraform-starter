@@ -1,15 +1,25 @@
-# QA environment configuration.
-auth0_domain: "REPLACE_WITH_QA_DOMAIN"
-region: "na"
+# qa environment configuration.
 
-marlo_callbacks:   ["https://qa.marlo.example.com/callback"]
-marlo_logout_urls: ["https://qa.marlo.example.com"]
-marlo_web_origins: ["https://qa.marlo.example.com"]
+tenant:
+  auth0_domain: "REPLACE_WITH_qa_DOMAIN"
+  region: "na"
 
-vault_auth0_domain:    "REPLACE_WITH_QA_DOMAIN"
-vault_auth0_client_id: "REPLACE_WITH_QA_VAULT_CLIENT_ID"
+clients:
+  marlo:
+    callbacks:   ["https://qa.marlo.example.com/callback"]
+    logout_urls: ["https://qa.marlo.example.com"]
+    web_origins: ["https://qa.marlo.example.com"]
 
-management_api_domain:    "REPLACE_WITH_QA_DOMAIN"
-management_api_client_id: "REPLACE_WITH_QA_MGMT_CLIENT_ID"
+vault_connections:
+  auth0-m2m:
+    domain:    "REPLACE_WITH_qa_DOMAIN"
+    client_id: "REPLACE_WITH_qa_VAULT_CLIENT_ID"
 
-api_base_url: "REPLACE_WITH_QA_API_URL"
+action_modules:
+  account-linking:
+    MANAGEMENT_API_DOMAIN:    "REPLACE_WITH_qa_DOMAIN"
+    MANAGEMENT_API_CLIENT_ID: "REPLACE_WITH_qa_MGMT_CLIENT_ID"
+
+actions:
+  enrich-signup-profile:
+    API_BASE_URL: "REPLACE_WITH_qa_API_URL"

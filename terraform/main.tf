@@ -1,7 +1,7 @@
 # Root module — composes child modules in dependency order.
 #
 # Environment config is loaded from manifests/environments/{env}.yaml.
-# Resource manifests reference keys from env_config for env-specific values.
+# Each module receives the full env_config and extracts its own section.
 
 locals {
   env_config     = yamldecode(file("${path.module}/manifests/environments/${var.environment}.yaml"))
@@ -18,7 +18,8 @@ module "vault_connections" {
   source      = "./modules/vault_connections"
   definitions = local.vault_conns
   secrets     = local.secrets
-  env_config  = local.env_config
+  env_config  = lookup(local.env_config, "vault_connections", {})
+  environment = var.environment
 }
 
 # 2. Action modules
@@ -26,7 +27,7 @@ module "action_modules" {
   source      = "./modules/action_modules"
   definitions = local.action_modules
   secrets     = local.secrets
-  env_config  = local.env_config
+  env_config  = lookup(local.env_config, "action_modules", {})
   environment = var.environment
 }
 
@@ -35,7 +36,7 @@ module "actions" {
   source                = "./modules/actions"
   definitions           = local.actions
   secrets               = local.secrets
-  env_config            = local.env_config
+  env_config            = lookup(local.env_config, "actions", {})
   environment           = var.environment
   action_module_outputs = module.action_modules.module_map
 }
@@ -61,6 +62,6 @@ module "forms" {
 module "clients" {
   source      = "./modules/clients"
   definitions = local.clients
-  env_config  = local.env_config
+  env_config  = lookup(local.env_config, "clients", {})
   environment = var.environment
 }

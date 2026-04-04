@@ -1,8 +1,12 @@
 # Auth0 action definitions.
 # https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/action
 #
-# Trigger ordering: order of actions in this file = execution order per trigger.
-# Env-specific config values reference keys from environments/{env}.yaml.
+# environments: Optional list of envs where this action should exist.
+#               Omit = created in all environments.
+#
+# testing: Optional block to route specific envs to next.js.
+#
+# Order of actions = execution order per trigger.
 actions:
   enrich-signup-profile:
     name: "Enrich Signup Profile"
@@ -12,9 +16,8 @@ actions:
     deploy: true
     code: "main.js"
     dependencies: {}
-    # Key references value in environments/{env}.yaml
     secrets_config:
-      API_BASE_URL: "api_base_url"
+      - "API_BASE_URL"
     secrets_pipeline: []
     modules:
       - module_key: "entry-path-verification"

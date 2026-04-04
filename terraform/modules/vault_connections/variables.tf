@@ -10,3 +10,7 @@ variable "secrets" {
 variable "env_config" {
   type = any
 }
+
+variable "environment" {
+  type = string
+}

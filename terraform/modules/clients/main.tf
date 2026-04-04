@@ -1,7 +1,19 @@
 # https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/client
+#
+# env_config is the "clients" section from environments/{env}.yaml.
+# Each key matches a client key in clients.yaml.
+# If a client has an "environments" list and the current env isn't in it, skip it.
+
+locals {
+  # Filter clients by environments list. No list = all environments.
+  active_clients = {
+    for k, v in var.definitions : k => v
+    if lookup(v, "environments", null) == null || contains(v.environments, var.environment)
+  }
+}
 
 resource "auth0_client" "this" {
-  for_each = var.definitions
+  for_each = local.active_clients
 
   name            = each.value.name
   description     = lookup(each.value, "description", null)
@@ -9,11 +21,11 @@ resource "auth0_client" "this" {
   oidc_conformant = lookup(each.value, "oidc_conformant", true)
   is_first_party  = lookup(each.value, "is_first_party", true)
 
-  # Resolve env-specific values from env_config using the _key fields.
-  # M2M clients without callbacks_key get empty lists.
-  callbacks           = lookup(each.value, "callbacks_key", null) != null ? var.env_config[each.value.callbacks_key] : []
-  allowed_logout_urls = lookup(each.value, "logout_urls_key", null) != null ? var.env_config[each.value.logout_urls_key] : []
-  web_origins         = lookup(each.value, "web_origins_key", null) != null ? var.env_config[each.value.web_origins_key] : null
+  # Env-specific values from environments/{env}.yaml → clients.{key}
+  # M2M clients without env config get empty lists.
+  callbacks           = try(var.env_config[each.key].callbacks, [])
+  allowed_logout_urls = try(var.env_config[each.key].logout_urls, [])
+  web_origins         = try(var.env_config[each.key].web_origins, null)
 
   grant_types = lookup(each.value, "grant_types", [])
 

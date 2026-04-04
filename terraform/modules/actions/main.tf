@@ -1,23 +1,26 @@
 # https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/action
 # https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/trigger_actions
-#
-# Important: auth0_trigger_actions manages ALL bindings for a trigger.
-# Any actions manually bound to the same trigger in the dashboard will
-# be removed by Terraform. Only actions defined here will remain.
 
 locals {
+  # Filter by environments list. No list = all environments.
+  active = {
+    for k, v in var.definitions : k => v
+    if lookup(v, "environments", null) == null || contains(v.environments, var.environment)
+  }
+
   resolved_code = {
-    for k, v in var.definitions : k => (
+    for k, v in local.active : k => (
       lookup(v, "testing", null) != null
       && contains(lookup(lookup(v, "testing", {}), "envs", []), var.environment)
     ) ? v.testing.file : v.code
   }
 
   resolved_secrets = {
-    for k, v in var.definitions : k => merge(
+    for k, v in local.active : k => merge(
       {
-        for sk, config_key in lookup(v, "secrets_config", {}) :
-        sk => var.env_config[config_key]
+        for secret_name in lookup(v, "secrets_config", []) :
+        secret_name => var.env_config[k][secret_name]
+        if lookup(var.env_config, k, null) != null
       },
       {
         for secret_name in lookup(v, "secrets_pipeline", []) :
@@ -28,7 +31,7 @@ locals {
 }
 
 resource "auth0_action" "this" {
-  for_each = var.definitions
+  for_each = local.active
 
   name    = each.value.name
   runtime = each.value.runtime
@@ -65,17 +68,16 @@ resource "auth0_action" "this" {
   }
 }
 
-# Trigger bindings — YAML order = execution order.
-# auth0_trigger_actions manages ALL bindings for a trigger.
-# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/trigger_actions
+# Trigger bindings — only includes active actions.
+# YAML order = execution order.
 locals {
-  triggers = distinct([for k, v in var.definitions : v.trigger])
+  triggers = distinct([for k, v in local.active : v.trigger])
   actions_by_trigger = {
     for trigger in local.triggers : trigger => [
-      for k in keys(var.definitions) : {
+      for k in keys(local.active) : {
         key  = k
-        name = var.definitions[k].name
-      } if var.definitions[k].trigger == trigger
+        name = local.active[k].name
+      } if local.active[k].trigger == trigger
     ]
   }
 }
@@ -92,6 +94,5 @@ resource "auth0_trigger_actions" "this" {
     }
   }
 
-  # Ensure actions are fully deployed before binding to trigger.
   depends_on = [auth0_action.this]
 }

@@ -4,15 +4,115 @@ Manages Auth0 CIC (Customer Identity Cloud) tenant configuration across four env
 
 ## Architecture decisions
 
-1. **YAML manifests are the single source of truth.** All resource definitions live in YAML. Adding a resource means editing YAML and opening a PR.
-2. **No tfvars files.** Pipeline passes `environment` as a single `-var` flag. All config lives in YAML manifests.
-3. **Config vs. secrets separation.** Non-secret values (domains, client IDs, URLs) are version-controlled in manifests. Actual secrets (client_secret, API keys) are individual masked variables in Azure DevOps variable groups, assembled into JSON by the pipeline template.
-4. **Deployment and promotion are separate.** Merge to `master` auto-deploys to dev only. Higher environments require manually triggering the promote pipeline.
-5. **Two-file versioning.** Each artifact has `main.js` (canonical) and optionally `next.js` (testing). The manifest `testing` block controls routing.
-6. **`prevent_destroy` on critical resources.** Clients and vault connections cannot be accidentally deleted.
-7. **M2M client grants are NOT managed here.** We create client shells and output `client_id` for the grants team.
-8. **Commit `.terraform.lock.hcl`.** The lock file ensures plan and apply use identical provider versions. Do not gitignore it.
-9. **Single pipeline run deploys everything.** Terraform's dependency graph creates modules first, publishes them, then creates actions with the correct module version IDs. No need to run the pipeline twice.
+1. **YAML manifests are the single source of truth.** Resource definitions live in YAML. Adding a resource means editing YAML and opening a PR.
+2. **No tfvars files.** Pipeline passes `environment` as a single `-var` flag.
+3. **Config vs. secrets separation.** Non-secret values live in per-environment YAML. Actual secrets are masked pipeline variables.
+4. **Nested env config mirrors manifest structure.** Environment files organized by resource type, keyed identically to resource manifests.
+5. **Every apply requires approval.** Plan runs automatically. Approver reviews plan artifact before apply.
+6. **Deployment and promotion are separate.** Merge to `master` plans+applies dev (after approval). Higher envs require the promote pipeline.
+7. **Two independent resource controls.** `environments` filter controls WHERE a resource exists. `testing` block controls WHICH CODE it runs.
+8. **`prevent_destroy` on critical resources.** Clients and vault connections.
+9. **M2M client grants are NOT managed here.** Separate team uses outputted `client_id`.
+10. **Commit `.terraform.lock.hcl`.** Ensures plan and apply use identical provider versions.
+11. **Single pipeline run deploys everything.** Terraform dependency graph handles module → action → trigger ordering.
+
+---
+
+## Two resource controls — when to use which
+
+Every resource type (clients, actions, action modules, vault connections, forms) supports both controls. They solve different problems and can be used independently or together.
+
+### `environments` filter — controls WHERE a resource exists
+
+Add `environments: ["dev", "qa"]` to any resource definition. The resource will only be created in those environments. Omit the list entirely = created everywhere.
+
+**Use when:** The resource is new and shouldn't exist in higher environments yet, or it genuinely only belongs in certain environments (like a debug tool in dev only).
+
+```yaml
+# This action only exists in dev and qa
+actions:
+  new-feature-action:
+    name: "New Feature Action"
+    trigger: "post-login"
+    environments: ["dev", "qa"]       # ← only created in dev and qa
+    code: "main.js"
+    # ...
+```
+
+**Promotion workflow:**
+```
+Step 1: environments: ["dev"]         → merge → deploy to dev
+Step 2: environments: ["dev", "qa"]   → merge → promote to qa
+Step 3: environments: ["dev", "qa", "val", "prod"]  → promote to val, prod
+Step 4: remove environments key       → now exists everywhere (clean state)
+```
+
+### `testing` block — controls WHICH CODE a resource runs
+
+The resource exists in all environments but some envs run different code. Use `main.js` (canonical) + `next.js` (testing).
+
+**Use when:** The resource already exists everywhere and you're testing a new version of the code.
+
+```yaml
+# This action exists everywhere. Dev and qa run new code, val and prod run current.
+actions:
+  enrich-signup-profile:
+    name: "Enrich Signup Profile"
+    trigger: "pre-user-registration"
+    code: "main.js"                    # ← val, prod run this
+    testing:
+      file: "next.js"                 # ← dev, qa run this
+      envs: ["dev", "qa"]
+```
+
+**Promotion workflow:**
+```
+Step 1: testing.envs: ["dev"]         → merge → dev runs next.js
+Step 2: testing.envs: ["dev", "qa"]   → merge → promote to qa
+Step 3: testing.envs: ["dev", "qa", "val", "prod"]  → promote through
+Step 4: overwrite main.js with next.js, delete next.js, remove testing block
+```
+
+### Using both together — new resource with code iteration
+
+```yaml
+actions:
+  brand-new-action:
+    name: "Brand New Action"
+    trigger: "post-login"
+    environments: ["dev"]             # Only exists in dev for now
+    code: "main.js"
+    testing:
+      file: "next.js"                # Dev runs the experimental version
+      envs: ["dev"]
+```
+
+When ready: expand `environments` to include qa, move `testing.envs` to match, promote.
+
+### What happens when someone else promotes while I'm testing?
+
+This is safe. Each resource's `environments` and `testing` blocks are independent YAML sections. When Developer B runs promote for qa to push their client change, Terraform evaluates every resource's filters:
+
+- Developer A's new action has `environments: ["dev"]` → Terraform skips it in qa. No effect.
+- Developer B's client has no `environments` filter → Terraform applies the change in qa.
+
+No blocking, no conflicts. The manifest is the routing table and each resource section is independent.
+
+### When is a resource "ready for promotion"?
+
+The answer is always the same: **a developer submits a PR that changes the manifest.** There is no separate "mark as ready" step. The PR IS the promotion decision. The reviewer approves the manifest change. The promote pipeline applies it.
+
+```
+Developer decides "this is ready for qa"
+  → PR: change environments or testing.envs to include qa
+  → Reviewer approves
+  → Merge to master
+  → Trigger promote pipeline for qa
+  → Environment approval gate
+  → Apply
+```
+
+---
 
 ## Naming conventions
 
@@ -22,9 +122,8 @@ Manages Auth0 CIC (Customer Identity Cloud) tenant configuration across four env
 | Azure DevOps Environment | `{region}-{env}-axon-cic` | `na-dev-axon-cic` |
 | Azure DevOps Pipeline | `CIC - {purpose}` | `CIC - Deploy Dev` |
 | S3 state key | `auth0/{env}/terraform.tfstate` | `auth0/dev/terraform.tfstate` |
-| Auth0 client name | Descriptive purpose, no env/region | `Auth0 Actions Service` |
-| Auth0 action module name | Title Case descriptive | `Entry Path Verification` |
-| Auth0 action name | Title Case descriptive | `Enrich Signup Profile` |
+| Auth0 client name | Descriptive, no env/region | `Auth0 Actions Service` |
+| Auth0 module/action name | Title Case descriptive | `Enrich Signup Profile` |
 | Manifest keys | lowercase-kebab-case | `enrich-signup-profile` |
 
 ## Repository structure
@@ -32,72 +131,95 @@ Manages Auth0 CIC (Customer Identity Cloud) tenant configuration across four env
 ```
 auth0-infrastructure/
 ├── terraform/
-│   ├── main.tf                                     # Root module — composes child modules
+│   ├── main.tf                                     # Root module
 │   ├── variables.tf                                # environment + secrets_json
 │   ├── outputs.tf
-│   ├── providers.tf                                # Empty — reads AUTH0_* env vars
+│   ├── providers.tf                                # Empty — AUTH0_* env vars
 │   ├── versions.tf                                 # auth0/auth0 ~> 1.41 + S3 backend
 │   │
 │   ├── modules/
-│   │   ├── clients/                                # auth0_client (prevent_destroy)
-│   │   ├── action_modules/                         # auth0_action_module + versions
+│   │   ├── clients/                                # auth0_client
+│   │   ├── action_modules/                         # auth0_action_module
 │   │   ├── actions/                                # auth0_action + auth0_trigger_actions
-│   │   ├── vault_connections/                      # auth0_flow_vault_connection (prevent_destroy)
+│   │   ├── vault_connections/                      # auth0_flow_vault_connection
 │   │   ├── flows/                                  # auth0_flow
 │   │   └── forms/                                  # auth0_form
 │   │
 │   ├── manifests/
-│   │   ├── environments/                            # Per-env config (one file per env)
+│   │   ├── environments/                           # One file per env (nested by resource type)
 │   │   │   ├── dev.yaml
 │   │   │   ├── qa.yaml
 │   │   │   ├── val.yaml
 │   │   │   └── prod.yaml
-│   │   ├── clients.yaml                            # 6 client definitions
-│   │   ├── actions.yaml                            # Action definitions + module refs
-│   │   ├── action_modules.yaml                     # 3 module definitions
+│   │   ├── clients.yaml                            # Client definitions (env-agnostic)
+│   │   ├── actions.yaml                            # Action definitions (env-agnostic)
+│   │   ├── action_modules.yaml                     # Module definitions (env-agnostic)
 │   │   ├── flows.yaml                              # Vault connections, flows, forms
 │   │   └── forms/                                  # Exported dashboard JSON
 │   │
 │   ├── actions/
-│   │   └── enrich-signup-profile/main.js           # Pre-user-registration action
+│   │   └── enrich-signup-profile/main.js
 │   │
 │   ├── action_modules/
-│   │   ├── entry-path-verification/main.js         # Entry path API verification
-│   │   ├── account-linking/main.js                 # Account linking + Mgmt API
-│   │   └── signup-validation/main.js               # Joi validation + phone + consent
+│   │   ├── entry-path-verification/main.js
+│   │   ├── account-linking/main.js
+│   │   └── signup-validation/main.js
 │   │
-│   └── backends/
-│       ├── dev.s3.tfbackend
-│       ├── qa.s3.tfbackend
-│       ├── val.s3.tfbackend
-│       └── prod.s3.tfbackend
+│   └── backends/                                   # Per-env S3 backend configs
 │
 └── pipelines/
     ├── deploy-dev.yml                              # Auto on merge to master
     ├── promote.yml                                 # Manual → qa | val | prod
     ├── pr-validation.yml                           # Auto on PR to master
     └── templates/
-        ├── security-scan.yml                       # Checkov + tflint + JS syntax
-        ├── terraform-validate.yml                  # fmt check + validate
+        ├── security-scan.yml
+        ├── terraform-validate.yml
         ├── terraform-init.yml
         ├── terraform-plan.yml
         └── terraform-apply.yml
 ```
 
+## How env-specific config works
+
+One file per environment, nested by resource type:
+
+```yaml
+# manifests/environments/dev.yaml
+tenant:
+  auth0_domain: "na-dev-axon-cic.us.auth0.com"
+
+clients:
+  marlo:                                      # ← matches key in clients.yaml
+    callbacks:   ["https://dev.marlo.example.com/callback"]
+    logout_urls: ["https://dev.marlo.example.com"]
+
+vault_connections:
+  auth0-m2m:                                  # ← matches key in flows.yaml
+    domain:    "na-dev-axon-cic.us.auth0.com"
+    client_id: "qvFfk2E8XgVB0GFMVG8bIeBi5UAvIJoy"
+
+action_modules:
+  account-linking:                            # ← matches key in action_modules.yaml
+    MANAGEMENT_API_DOMAIN:    "na-dev-axon-cic.us.auth0.com"
+    MANAGEMENT_API_CLIENT_ID: "7d0qY6YcztsnqgjCPHQyGcS7QEVOV1xe"
+
+actions:
+  enrich-signup-profile:                      # ← matches key in actions.yaml
+    API_BASE_URL: "https://dev2.nonprod-store.myalcon.com"
+```
+
+M2M clients with no env-specific values don't need entries in the env file.
+
 ## Module call order
 
-Terraform resolves dependencies automatically. Single `terraform apply` handles everything:
-
 ```
-1. vault_connections    → outputs vault connection IDs
-2. action_modules       → creates modules, publishes versions, outputs { id, version_id }
-3. actions              → consumes module outputs for modules {} block
-4. flows                → consumes vault_connection outputs
-5. forms                → consumes flow + vault_connection outputs
+1. vault_connections    → outputs connection IDs
+2. action_modules       → creates + publishes, outputs { id, version_id }
+3. actions              → creates actions, binds modules, binds to triggers
+4. flows                → creates flows with vault refs
+5. forms                → creates forms with flow + vault refs
 6. clients              → independent
 ```
-
-Modules are created and published BEFORE actions because the action resource references `module_id` and `module_version_id`. Terraform's dependency graph ensures correct order in a single run.
 
 ---
 
@@ -108,29 +230,11 @@ Modules are created and published BEFORE actions because the action resource ref
 | Variable Group | Standard variables | Secrets to add (masked) |
 |---|---|---|
 | `na-dev-axon-cic` | `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, `AUTH0_DOMAIN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `TF_STATE_BUCKET` | `VAULT_AUTH0_CLIENT_SECRET`, `MANAGEMENT_API_CLIENT_SECRET` |
-| `na-qa-axon-cic` | Same standard variables | Same secrets (qa values) |
+| `na-qa-axon-cic` | Same | Same (qa values) |
 | `na-val-axon-cic` | Same | Same |
 | `na-prod-axon-cic` | Same | Same |
 
-**Secrets to add** (mark as secret/opaque in each variable group):
-
-| Variable name | Purpose | Where to get the value |
-|---|---|---|
-| `VAULT_AUTH0_CLIENT_SECRET` | Vault connection M2M app client secret | Auth0 Dashboard → Applications → vault M2M app → Settings → Client Secret |
-| `MANAGEMENT_API_CLIENT_SECRET` | Account linking module M2M client secret | Auth0 Dashboard → Applications → account-linking M2M app → Client Secret |
-
-The pipeline template assembles these into JSON for Terraform automatically. You just add them as individual masked variables.
-
-### Config values to update in manifests (NOT secrets — version controlled)
-
-| File | Value | What to update |
-|---|---|---|
-| `manifests/environments/{env}.yaml` | `auth0_domain` per env | Replace placeholders with real tenant domains |
-| `manifests/clients.yaml` | Marlo `callbacks`, `logout_urls`, `web_origins` | Replace `example.com` with real domains |
-| `manifests/flows.yaml` | Vault connection `client_id` per env | Replace `REPLACE_WITH_*` with real M2M client IDs |
-| `manifests/action_modules.yaml` | Account linking `MANAGEMENT_API_DOMAIN` per env | Replace placeholders with real tenant domains |
-| `manifests/action_modules.yaml` | Account linking `MANAGEMENT_API_CLIENT_ID` per env | Replace placeholders with real M2M client IDs |
-| `manifests/actions.yaml` | `API_BASE_URL` per env | Replace placeholders with real API URLs |
+When adding secrets for new resources: add to variable groups AND to `TF_VAR_secrets_json` in both `terraform-plan.yml` and `terraform-apply.yml`.
 
 ### Environments
 
@@ -138,32 +242,26 @@ Create manually: Pipelines → Environments → New Environment.
 
 | Environment | Approvals | Locks |
 |---|---|---|
-| `na-dev-axon-cic` | At least 1 approver (plan review before apply) | Exclusive lock |
+| `na-dev-axon-cic` | At least 1 approver | Exclusive lock |
 | `na-qa-axon-cic` | Team lead | Exclusive lock |
 | `na-val-axon-cic` | Release manager | Exclusive lock |
 | `na-prod-axon-cic` | 2 senior engineers, no self-approval | Exclusive lock |
 
-**Every apply requires approval.** The apply stage uses Azure DevOps Environments which enforce approval checks. Plan runs automatically and publishes artifacts. The approver reviews the plan summary artifact, then approves or rejects. Apply uses the exact saved plan from the plan stage — no drift between what was reviewed and what is applied.
-
 ### Pipelines
-
-Create manually: Pipelines → New Pipeline → GitHub → Existing YAML file.
 
 | Pipeline name | YAML file | Trigger |
 |---|---|---|
 | `CIC - Deploy Dev` | `pipelines/deploy-dev.yml` | Auto (merge to master) |
-| `CIC - Promote` | `pipelines/promote.yml` | Manual (env + region params) |
+| `CIC - Promote` | `pipelines/promote.yml` | Manual |
 | `CIC - PR Validation` | `pipelines/pr-validation.yml` | Auto (PR to master) |
 
 ### Pipeline stages
 
-Every pipeline runs these stages in order:
-
 ```
-Security & quality          → Checkov scan, tflint, JS syntax check
-Terraform validation        → terraform fmt -check + terraform validate
-Terraform plan              → generates and publishes plan artifact + summary
-Terraform apply             → applies saved plan (approval gated per env)
+Security & quality    → Checkov, tflint, JS syntax
+Terraform validation  → fmt check + validate
+Terraform plan        → plan artifact + plan summary artifact
+Terraform apply       → apply saved plan (approval gated) + apply output artifact
 ```
 
 ---
@@ -172,115 +270,100 @@ Terraform apply             → applies saved plan (approval gated per env)
 
 ### Clients (6)
 
-| Key | Name | Type | Purpose |
-|---|---|---|---|
-| `auth0-actions` | Auth0 Actions Service | M2M | User lookup, account linking |
-| `auth0-vault` | Auth0 Vault Service | M2M | Vault connections, user updates |
-| `branded-ui-service` | Branded UI Service | M2M | Branding, universal login |
-| `email-template-service` | Email Template Service | M2M | Email templates |
-| `marlo` | Marlo | SPA | Frontend app |
-| `mulesoft` | MuleSoft Integration | M2M | Management API proxy |
+| Key | Name | Type |
+|---|---|---|
+| `auth0-actions` | Auth0 Actions Service | M2M |
+| `auth0-vault` | Auth0 Vault Service | M2M |
+| `branded-ui-service` | Branded UI Service | M2M |
+| `email-template-service` | Email Template Service | M2M |
+| `marlo` | Marlo | SPA |
+| `mulesoft` | MuleSoft Integration | M2M |
 
 ### Action modules (3)
 
-| Key | Name | Dependencies | Secrets |
+| Key | Name | Config (env file) | Secrets (pipeline) |
 |---|---|---|---|
-| `entry-path-verification` | Entry Path Verification | None | None |
-| `account-linking` | Account Linking | `auth0@latest` | `MANAGEMENT_API_DOMAIN` (config), `MANAGEMENT_API_CLIENT_ID` (config), `MANAGEMENT_API_CLIENT_SECRET` (pipeline) |
-| `signup-validation` | Signup Validation | `joi@latest`, `libphonenumber-js@latest` | None |
+| `entry-path-verification` | Entry Path Verification | — | — |
+| `account-linking` | Account Linking | `MANAGEMENT_API_DOMAIN`, `MANAGEMENT_API_CLIENT_ID` | `MANAGEMENT_API_CLIENT_SECRET` |
+| `signup-validation` | Signup Validation | — | — |
 
 ### Actions (1)
 
-| Key | Name | Trigger | Modules used | Secrets |
+| Key | Name | Trigger | Config | Modules |
 |---|---|---|---|---|
-| `enrich-signup-profile` | Enrich Signup Profile | `pre-user-registration` (v2) | `entry-path-verification`, `signup-validation` | `API_BASE_URL` (config per env) |
+| `enrich-signup-profile` | Enrich Signup Profile | `pre-user-registration` | `API_BASE_URL` | `entry-path-verification`, `signup-validation` |
 
 ### Vault connections (1)
 
-| Key | Name | Config (in manifest) | Secrets (from pipeline) |
+| Key | Name | Config (env file) | Secrets (pipeline) |
 |---|---|---|---|
-| `auth0-m2m` | Auth0 M2M Connection | `type`, `domain`, `client_id` per env | `VAULT_AUTH0_CLIENT_SECRET` |
-
-### Trigger execution order
-
-The order of actions in `manifests/actions.yaml` defines execution order per trigger. Currently:
-
-```
-pre-user-registration:
-  1. Enrich Signup Profile
-```
-
-When you add more actions to a trigger, their order in the YAML file determines execution order.
+| `auth0-m2m` | Auth0 M2M Connection | `domain`, `client_id` | `VAULT_AUTH0_CLIENT_SECRET` |
 
 ---
 
-## Config vs. secrets — where everything lives
+## Config vs. secrets
 
-| Value | Location | Why |
+| Value | Where | Why |
 |---|---|---|
-| All env-specific non-secret values | `manifests/environments/{env}.yaml` | One file per env — domains, URLs, client IDs |
-| Resource definitions | `manifests/clients.yaml`, `actions.yaml`, etc. | Env-agnostic — reference keys from env config |
-| Vault connection client_secret | `VAULT_AUTH0_CLIENT_SECRET` in variable group | **Secret** |
-| Module secret (MGMT client_secret) | `MANAGEMENT_API_CLIENT_SECRET` in variable group | **Secret** |
-| Auth0 provider credentials | `AUTH0_*` in variable group | **Secret** |
-| AWS credentials | `AWS_*` in variable group | **Secret** |
+| All env-specific non-secret values | `manifests/environments/{env}.yaml` | Nested by resource type |
+| Resource definitions | `manifests/*.yaml` | Env-agnostic, references env config keys |
+| `VAULT_AUTH0_CLIENT_SECRET` | Variable group (masked) | Secret |
+| `MANAGEMENT_API_CLIENT_SECRET` | Variable group (masked) | Secret |
+| `AUTH0_*` provider credentials | Variable group (masked) | Secret |
+| `AWS_*` credentials | Variable group (masked) | Secret |
 
 ---
 
-## Action versioning
+## Bootstrap guide (first deployment)
 
-Each action/module has ONE canonical file: `main.js`. During development, `next.js` exists alongside it. The manifest `testing` block controls routing:
+To avoid partial apply issues, use targeted applies on first deploy:
 
-```yaml
-actions:
-  enrich-signup-profile:
-    code: "main.js"
-    testing:
-      file: "next.js"
-      envs: ["dev", "qa"]        # These envs run next.js; others get main.js
+```bash
+terraform apply -var="environment=dev" -target=module.clients
+terraform apply -var="environment=dev" -target=module.vault_connections
+terraform apply -var="environment=dev" -target=module.action_modules
+terraform apply -var="environment=dev" -target=module.actions
+terraform apply -var="environment=dev"
 ```
 
-**Promotion:** Append env to `testing.envs` → merge → trigger promote.
-**Rollback:** Remove env from list → that env reverts to `main.js`.
-**Cleanup:** After full promotion, overwrite `main.js`, delete `next.js`, remove `testing` block.
-
-### Module versioning strategy
-
-Auth0 creates immutable published versions when `publish = true`. When you update a module's `main.js` and deploy, Auth0 publishes a new version. Actions always consume the latest published version via the `data.auth0_action_module_versions` data source.
-
-The promotion pipeline is the safety gate — higher environments only see new module code when you trigger promote. Within a single environment, module and action updates happen atomically in one `terraform apply`.
+**If partial apply happens** (resource created in Auth0, state not saved):
+```bash
+terraform import -var="environment=dev" \
+  'module.actions.auth0_action.this["enrich-signup-profile"]' \
+  "ACTION_ID_FROM_DASHBOARD"
+```
 
 ---
 
 ## Adding new resources
 
+### New client
+1. Add to `manifests/clients.yaml` (add `environments` list if not all envs)
+2. If SPA/web: add env config to each `manifests/environments/{env}.yaml` under `clients.{key}`
+3. PR → merge → approve → apply
+
 ### New action
-1. Create `actions/<n>/main.js`
-2. Add entry to `manifests/actions.yaml` with trigger, runtime, modules, secrets_config/secrets_pipeline
-3. PR → merge → deploy-dev
+1. Create `actions/{name}/main.js`
+2. Add to `manifests/actions.yaml` (add `environments: ["dev"]` if dev-only initially)
+3. Add env config to each env file under `actions.{key}`
+4. PR → merge → approve → apply
 
 ### New action module
-1. Create `action_modules/<n>/main.js`
-2. Add entry to `manifests/action_modules.yaml`
-3. Reference in `manifests/actions.yaml` via `modules: [{ module_key: "<n>" }]`
-4. PR → merge → deploy-dev (single run creates module + updates actions)
+1. Create `action_modules/{name}/main.js`
+2. Add to `manifests/action_modules.yaml`
+3. If it has config: add values to env files under `action_modules.{key}`
+4. Reference in `actions.yaml` via `modules: [{ module_key: "{name}" }]`
+5. PR → merge → single apply creates module + updates actions
 
-### Adding a secret for a new module or action
-1. Add the variable to each variable group (masked) in Azure DevOps
-2. Add the variable name to `secrets_pipeline` in the manifest
-3. Add the variable to the `TF_VAR_secrets_json` assembly in both `terraform-plan.yml` AND `terraform-apply.yml` templates
+### New secret
+1. Add masked variable to each variable group in Azure DevOps
+2. Add name to `secrets_pipeline` in the resource manifest
+3. Add key to `TF_VAR_secrets_json` in BOTH `terraform-plan.yml` AND `terraform-apply.yml`
 
----
-
-## Getting started
-
-1. **Add secrets to variable groups**: `VAULT_AUTH0_CLIENT_SECRET` and `MANAGEMENT_API_CLIENT_SECRET` (masked) in each env group
-2. **Create environments**: `na-dev-axon-cic`, `na-qa-axon-cic`, `na-val-axon-cic`, `na-prod-axon-cic`
-3. **Create three pipelines** pointing to the YAML files
-4. **Update config placeholders** in manifests (see table above)
-5. **Push to master** → `CIC - Deploy Dev` triggers
-6. **Verify in dev**: 6 clients, 1 vault connection, 3 modules, 1 action
-7. **Trigger `CIC - Promote`** for qa, val, prod
+### Promote a resource to higher environments
+1. Expand `environments` list or `testing.envs` to include target env
+2. If resource needs env-specific config, add values to the target env file
+3. PR → merge → trigger `CIC - Promote` for the target env
 
 ---
 
@@ -293,11 +376,9 @@ The promotion pipeline is the safety gate — higher environments only see new m
 | `auth0_action` | https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/action |
 | `auth0_trigger_actions` | https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/trigger_actions |
 | `auth0_action_module` | https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/action_module |
-| `auth0_action_module_versions` | https://registry.terraform.io/providers/auth0/auth0/latest/docs/data-sources/action_module_versions |
 | `auth0_flow_vault_connection` | https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/flow_vault_connection |
-| `auth0_flow` | https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/flow |
 | `auth0_form` | https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/form |
 | Provider authentication | https://github.com/auth0/terraform-provider-auth0/blob/main/docs/index.md |
 | Terraform S3 backend | https://developer.hashicorp.com/terraform/language/backend/s3 |
-| Terraform sensitive variables | https://developer.hashicorp.com/terraform/tutorials/configuration-language/sensitive-variables |
+| Terraform lock file | https://developer.hashicorp.com/terraform/language/files/dependency-lock |
 | Azure DevOps environments | https://learn.microsoft.com/en-us/azure/devops/pipelines/process/environments |

@@ -1,23 +1,32 @@
 # Dev environment configuration.
-# All env-specific non-secret values live here.
-# Resource manifests reference these keys — no env values scattered across files.
+# Nested by resource type — mirrors manifest structure.
 
-# Tenant
-auth0_domain: "apac-dev-axon-cic.jp.auth0.com"
-region: "na"
+tenant:
+  auth0_domain: "na-dev-axon-cic.us.auth0.com"
+  region: "na"
 
-# Client: Marlo
-marlo_callbacks:   ["https://dev.marlo.example.com/callback"]
-marlo_logout_urls: ["https://dev.marlo.example.com"]
-marlo_web_origins: ["https://dev.marlo.example.com"]
+# Client env-specific values keyed by client manifest key.
+# Only clients that need env-specific values appear here.
+# M2M clients with no callbacks/URLs don't need entries.
+clients:
+  marlo:
+    callbacks:   ["https://dev.marlo.example.com/callback"]
+    logout_urls: ["https://dev.marlo.example.com"]
+    web_origins: ["https://dev.marlo.example.com"]
 
-# Vault connection: Auth0 M2M
-vault_auth0_domain:    "apac-dev-axon-cic.jp.auth0.com"
-vault_auth0_client_id: "REPLACE_WITH_DEV_VAULT_CLIENT_ID"
+# Vault connection config keyed by vault manifest key.
+vault_connections:
+  auth0-m2m:
+    domain:    "na-dev-axon-cic.us.auth0.com"
+    client_id: "qvFfk2E8XgVB0GFMVG8bIeBi5UAvIJoy"
 
-# Action module: Account Linking
-management_api_domain:    "apac-dev-axon-cic.jp.auth0.com"
-management_api_client_id: "gjiDHBkE6ewiGNs8Pc9qQU4vvelZJisM"
+# Action module config keyed by module manifest key.
+action_modules:
+  account-linking:
+    MANAGEMENT_API_DOMAIN:    "na-dev-axon-cic.us.auth0.com"
+    MANAGEMENT_API_CLIENT_ID: "7d0qY6YcztsnqgjCPHQyGcS7QEVOV1xe"
 
-# Action: Enrich Signup Profile
-api_base_url: "https://dev2.nonprod-store.myalcon.com"
+# Action config keyed by action manifest key.
+actions:
+  enrich-signup-profile:
+    API_BASE_URL: "https://dev2.nonprod-store.myalcon.com"

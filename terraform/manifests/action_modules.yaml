@@ -1,15 +1,17 @@
 # Auth0 action module definitions.
 # https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/action_module
 #
-# Env-specific config values reference keys from environments/{env}.yaml.
-# Actual secrets come from pipeline variable groups (secrets_pipeline).
+# environments: Optional list of envs where this module should exist.
+#               Omit = created in all environments.
+#               Example: environments: ["dev", "qa"]
+#
+# testing: Optional block to route specific envs to next.js during development.
 action_modules:
   entry-path-verification:
     name: "Entry Path Verification"
     publish: true
     code: "main.js"
     dependencies: {}
-    secrets_config: {}
     secrets_pipeline: []
 
   account-linking:
@@ -18,10 +20,9 @@ action_modules:
     code: "main.js"
     dependencies:
       auth0: "latest"
-    # Keys reference values in environments/{env}.yaml
     secrets_config:
-      MANAGEMENT_API_DOMAIN: "management_api_domain"
-      MANAGEMENT_API_CLIENT_ID: "management_api_client_id"
+      - "MANAGEMENT_API_DOMAIN"
+      - "MANAGEMENT_API_CLIENT_ID"
     secrets_pipeline:
       - "MANAGEMENT_API_CLIENT_SECRET"
 
@@ -32,5 +33,4 @@ action_modules:
     dependencies:
       joi: "latest"
       libphonenumber-js: "latest"
-    secrets_config: {}
     secrets_pipeline: []
