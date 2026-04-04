@@ -14,11 +14,13 @@ jobs:
           environment: ${{ parameters.environment }}
 
       - script: |
+          set -o pipefail
           cd $(Build.SourcesDirectory)/terraform
           terraform plan \
             -var="environment=${{ parameters.environment }}" \
             -out=$(Build.ArtifactStagingDirectory)/${{ parameters.environment }}.tfplan \
-            -input=false
+            -input=false \
+            2>&1 | tee $(Build.ArtifactStagingDirectory)/plan-output.log
         displayName: "Terraform plan"
         env:
           AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
@@ -32,6 +34,21 @@ jobs:
               "VAULT_AUTH0_CLIENT_SECRET": "$(VAULT_AUTH0_CLIENT_SECRET)",
               "MANAGEMENT_API_CLIENT_SECRET": "$(MANAGEMENT_API_CLIENT_SECRET)"
             }
+
+      - script: |
+          LOG="$(Build.ArtifactStagingDirectory)/plan-output.log"
+          if grep -qiE '429|rate.limit|too many requests|throttl' "$LOG" 2>/dev/null; then
+            echo "##[warning]Auth0 rate limiting detected during plan (${{ parameters.environment }}). Consider reducing parallelism (-parallelism=5) or splitting state."
+            echo ""
+            echo "Rate limit occurrences:"
+            grep -ciE '429|rate.limit|too many requests|throttl' "$LOG" | xargs -I{} echo "  {} occurrence(s) found"
+            echo ""
+            grep -iE '429|rate.limit|too many requests|throttl' "$LOG" | head -5
+          else
+            echo "No rate limiting detected."
+          fi
+        displayName: "Check for rate limiting"
+        condition: always()
 
       - script: |
           cd $(Build.SourcesDirectory)/terraform

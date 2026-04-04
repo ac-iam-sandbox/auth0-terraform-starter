@@ -10,8 +10,8 @@ Manages Auth0 CIC (Customer Identity Cloud) tenant configuration across four env
 4. **Nested env config mirrors manifest structure.** Environment files organized by resource type, keyed identically to resource manifests.
 5. **Every apply requires approval.** Plan runs automatically. Approver reviews plan artifact before apply.
 6. **Deployment and promotion are separate.** Merge to `master` plans+applies dev (after approval). Higher envs require the promote pipeline.
-7. **Two independent resource controls.** `environments` filter controls WHERE a resource exists. `testing` block controls WHICH CODE it runs.
-8. **`prevent_destroy` on critical resources.** Clients and vault connections.
+7. **`environments` key is required on every resource.** Controls WHERE a resource exists. `testing` block controls WHICH CODE it runs. The validation script enforces this — omitting the key fails the pipeline.
+8. **`prevent_destroy` on critical resources.** Clients, vault connections, actions, and action modules.
 9. **M2M client grants are NOT managed here.** Separate team uses outputted `client_id`.
 10. **Commit `.terraform.lock.hcl`.** Ensures plan and apply use identical provider versions.
 11. **Single pipeline run deploys everything.** Terraform dependency graph handles module → action → trigger ordering.
@@ -24,9 +24,9 @@ Every resource type (clients, actions, action modules, vault connections, forms)
 
 ### `environments` filter — controls WHERE a resource exists
 
-Add `environments: ["dev", "qa"]` to any resource definition. The resource will only be created in those environments. Omit the list entirely = created everywhere.
+**Required.** Every resource must have an explicit `environments` list. The manifest validation script enforces this on every PR and deploy. Resources that belong in all environments use `environments: [dev, qa, val, prod]`.
 
-**Use when:** The resource is new and shouldn't exist in higher environments yet, or it genuinely only belongs in certain environments (like a debug tool in dev only).
+**Use a subset when:** The resource is new and shouldn't exist in higher environments yet, or it genuinely only belongs in certain environments (like a debug tool in dev only).
 
 ```yaml
 # This action only exists in dev and qa
@@ -34,17 +34,17 @@ actions:
   new-feature-action:
     name: "New Feature Action"
     trigger: "post-login"
-    environments: ["dev", "qa"]       # ← only created in dev and qa
+    environments: [dev, qa]              # ← only created in dev and qa
     code: "main.js"
     # ...
 ```
 
 **Promotion workflow:**
 ```
-Step 1: environments: ["dev"]         → merge → deploy to dev
-Step 2: environments: ["dev", "qa"]   → merge → promote to qa
-Step 3: environments: ["dev", "qa", "val", "prod"]  → promote to val, prod
-Step 4: remove environments key       → now exists everywhere (clean state)
+Step 1: environments: [dev]              → merge → deploy to dev
+Step 2: environments: [dev, qa]          → merge → promote to qa
+Step 3: environments: [dev, qa, val]     → merge → promote to val
+Step 4: environments: [dev, qa, val, prod] → promote to prod (final state)
 ```
 
 ### `testing` block — controls WHICH CODE a resource runs
@@ -170,13 +170,16 @@ auth0-infrastructure/
 └── pipelines/
     ├── deploy-dev.yml                              # Auto on merge to master
     ├── promote.yml                                 # Manual → qa | val | prod
-    ├── pr-validation.yml                           # Auto on PR to master
+    ├── pr-validation.yml                           # Auto on PR to master (plans all envs)
+    ├── scripts/
+    │   └── validate-manifests.py                   # YAML manifest cross-reference validation
     └── templates/
-        ├── security-scan.yml
+        ├── security-scan.yml                       # Checkov, tflint, JS lint, manifest validation
         ├── terraform-validate.yml
         ├── terraform-init.yml
-        ├── terraform-plan.yml
-        └── terraform-apply.yml
+        ├── terraform-plan.yml                      # Plan + rate limit monitoring
+        ├── terraform-apply.yml
+        └── pr-comment.yml                          # Posts plan summaries as PR comment
 ```
 
 ## How env-specific config works
@@ -238,14 +241,33 @@ When adding secrets for new resources: add to variable groups AND to `TF_VAR_sec
 
 ### Environments
 
-Create manually: Pipelines → Environments → New Environment.
+Create manually: Pipelines → Environments → New Environment → Resource type: None.
 
-| Environment | Approvals | Locks |
-|---|---|---|
-| `na-dev-axon-cic` | At least 1 approver | Exclusive lock |
-| `na-qa-axon-cic` | Team lead | Exclusive lock |
-| `na-val-axon-cic` | Release manager | Exclusive lock |
-| `na-prod-axon-cic` | 2 senior engineers, no self-approval | Exclusive lock |
+Then configure checks: click the environment → three-dot menu → "Approvals and checks".
+
+| Environment | Approvals | Exclusive lock | Notes |
+|---|---|---|---|
+| `na-dev-axon-cic` | 1 team member (self-approve OK) | Yes | Fast iteration in dev |
+| `na-qa-axon-cic` | 1 team member, no self-approve | Yes | PR author cannot approve their own deploy |
+| `na-val-axon-cic` | Team lead or release manager | Yes | Gate before prod |
+| `na-prod-axon-cic` | 2 senior engineers, min 2 approvals, no self-approve | Yes | Consider adding Business Hours check |
+
+**Setting up approvals:**
+
+1. Go to Pipelines → Environments → click environment name
+2. Click the three-dot menu (⋯) → "Approvals and checks"
+3. Click "+ Add check" → select "Approvals"
+4. Add approvers, set minimum approvals, configure self-approval policy
+5. Click "+ Add check" → select "Exclusive lock" (prevents concurrent applies)
+6. Set timeout (recommended: 24h dev, 48h qa, 72h val/prod)
+
+**The `deployment` job in `terraform-apply.yml` triggers these checks.** When the pipeline reaches the apply stage, it pauses and shows "Waiting for approval" in the pipeline UI. The approver reviews the plan summary artifact, then approves or rejects.
+
+### PR comment permissions
+
+The PR validation pipeline posts plan summaries as PR comments. This requires the Build Service identity to have "Contribute to pull requests" permission.
+
+**Setup:** Project Settings → Repositories → Security → select your Build Service identity (usually `{Project Name} Build Service ({Org Name})`) → set "Contribute to pull requests" to **Allow**.
 
 ### Pipelines
 
@@ -257,11 +279,21 @@ Create manually: Pipelines → Environments → New Environment.
 
 ### Pipeline stages
 
+**Deploy Dev / Promote (apply pipelines):**
 ```
-Security & quality    → Checkov, tflint, JS syntax
+Security & quality    → Checkov, tflint, JS syntax, manifest validation
 Terraform validation  → fmt check + validate
-Terraform plan        → plan artifact + plan summary artifact
+Terraform plan        → plan artifact + plan summary + rate limit check
 Terraform apply       → apply saved plan (approval gated) + apply output artifact
+```
+
+**PR Validation:**
+```
+Security & quality    → Checkov, tflint, JS syntax, manifest validation
+Terraform validation  → fmt check + validate (dev)
+Plan dev              → plan + rate limit check
+Plan qa/val/prod      → parallel plans + rate limit checks (depend on dev passing)
+PR comment            → posts summary table + collapsible details to the PR
 ```
 
 ---
@@ -338,20 +370,20 @@ terraform import -var="environment=dev" \
 ## Adding new resources
 
 ### New client
-1. Add to `manifests/clients.yaml` (add `environments` list if not all envs)
-2. If SPA/web: add env config to each `manifests/environments/{env}.yaml` under `clients.{key}`
-3. PR → merge → approve → apply
+1. Add to `manifests/clients.yaml` with `environments: [dev]` (start in dev only)
+2. Add env config to `manifests/environments/dev.yaml` under `clients.{key}` (if SPA/web — M2M clients with no callbacks don't need env config)
+3. PR → validate (manifest validation + plan for all envs confirms it only appears in dev) → merge → approve → apply
 
 ### New action
 1. Create `actions/{name}/main.js`
-2. Add to `manifests/actions.yaml` (add `environments: ["dev"]` if dev-only initially)
-3. Add env config to each env file under `actions.{key}`
+2. Add to `manifests/actions.yaml` with `environments: [dev]`
+3. Add env config to `manifests/environments/dev.yaml` under `actions.{key}` (for any `secrets_config` entries)
 4. PR → merge → approve → apply
 
 ### New action module
 1. Create `action_modules/{name}/main.js`
-2. Add to `manifests/action_modules.yaml`
-3. If it has config: add values to env files under `action_modules.{key}`
+2. Add to `manifests/action_modules.yaml` with `environments: [dev]` and **pinned dependency versions** (never use `latest`)
+3. If it has config: add values to `manifests/environments/dev.yaml` under `action_modules.{key}`
 4. Reference in `actions.yaml` via `modules: [{ module_key: "{name}" }]`
 5. PR → merge → single apply creates module + updates actions
 
@@ -361,9 +393,9 @@ terraform import -var="environment=dev" \
 3. Add key to `TF_VAR_secrets_json` in BOTH `terraform-plan.yml` AND `terraform-apply.yml`
 
 ### Promote a resource to higher environments
-1. Expand `environments` list or `testing.envs` to include target env
+1. Expand `environments` list to include target env (e.g. `[dev]` → `[dev, qa]`)
 2. If resource needs env-specific config, add values to the target env file
-3. PR → merge → trigger `CIC - Promote` for the target env
+3. PR → multi-env plan on PR shows the resource appearing in the new env → merge → trigger `CIC - Promote` for the target env
 
 ---
 

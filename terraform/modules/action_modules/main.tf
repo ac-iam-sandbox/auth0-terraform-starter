@@ -51,4 +51,8 @@ resource "auth0_action_module" "this" {
       value = secrets.value
     }
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }

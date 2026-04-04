@@ -1,0 +1,138 @@
+# Posts a summary of all environment plans as a PR comment.
+# Requires "Contribute to pull requests" permission on the Build Service identity.
+# Configure at: Project Settings → Repositories → Security → {Build Service} → Contribute to pull requests = Allow.
+parameters:
+  - name: region
+    type: string
+    default: "na"
+
+jobs:
+  - job: post_comment
+    displayName: "Post plan summary to PR"
+    condition: and(succeededOrFailed(), eq(variables['Build.Reason'], 'PullRequest'))
+    steps:
+      - download: current
+        artifact: ${{ parameters.region }}-dev-plan-summary
+        displayName: "Download dev plan summary"
+        continueOnError: true
+
+      - download: current
+        artifact: ${{ parameters.region }}-qa-plan-summary
+        displayName: "Download qa plan summary"
+        continueOnError: true
+
+      - download: current
+        artifact: ${{ parameters.region }}-val-plan-summary
+        displayName: "Download val plan summary"
+        continueOnError: true
+
+      - download: current
+        artifact: ${{ parameters.region }}-prod-plan-summary
+        displayName: "Download prod plan summary"
+        continueOnError: true
+
+      - script: |
+          #!/bin/bash
+          set -euo pipefail
+
+          REGION="${{ parameters.region }}"
+          WORKSPACE="$(Pipeline.Workspace)"
+
+          # Extract change counts from a plan summary file.
+          # Returns "X to add, Y to change, Z to destroy" or "Plan failed / not available".
+          extract_counts() {
+            local file="$1"
+            if [ ! -f "$file" ]; then
+              echo "⚠️ Plan not available"
+              return
+            fi
+            local summary
+            summary=$(grep -E 'Plan:|No changes' "$file" | tail -1)
+            if echo "$summary" | grep -q "No changes"; then
+              echo "✅ No changes"
+            elif echo "$summary" | grep -q "Plan:"; then
+              # Extract: "Plan: X to add, Y to change, Z to destroy."
+              local add change destroy
+              add=$(echo "$summary" | grep -oP '\d+ to add' | grep -oP '\d+' || echo "0")
+              change=$(echo "$summary" | grep -oP '\d+ to change' | grep -oP '\d+' || echo "0")
+              destroy=$(echo "$summary" | grep -oP '\d+ to destroy' | grep -oP '\d+' || echo "0")
+              local icon="✅"
+              if [ "${destroy:-0}" -gt 0 ]; then icon="🔴"; elif [ "${change:-0}" -gt 0 ]; then icon="🟡"; fi
+              echo "${icon} +${add:-0} ~${change:-0} -${destroy:-0}"
+            else
+              echo "⚠️ Could not parse plan"
+            fi
+          }
+
+          # Build summary table
+          DEV_SUMMARY=$(extract_counts "$WORKSPACE/${REGION}-dev-plan-summary/plan-summary.txt")
+          QA_SUMMARY=$(extract_counts "$WORKSPACE/${REGION}-qa-plan-summary/plan-summary.txt")
+          VAL_SUMMARY=$(extract_counts "$WORKSPACE/${REGION}-val-plan-summary/plan-summary.txt")
+          PROD_SUMMARY=$(extract_counts "$WORKSPACE/${REGION}-prod-plan-summary/plan-summary.txt")
+
+          # Build collapsible details for each environment
+          build_details() {
+            local env="$1"
+            local file="$WORKSPACE/${REGION}-${env}-plan-summary/plan-summary.txt"
+            if [ ! -f "$file" ]; then
+              echo "<details><summary>${env} plan details</summary>\n\nPlan not available.\n</details>"
+              return
+            fi
+            # Truncate to 3000 chars to stay within API limits
+            local content
+            content=$(head -c 3000 "$file" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+            echo "<details><summary>${env} plan details</summary>\\n\\n\`\`\`\\n${content}\\n\`\`\`\\n</details>"
+          }
+
+          DEV_DETAILS=$(build_details "dev")
+          QA_DETAILS=$(build_details "qa")
+          VAL_DETAILS=$(build_details "val")
+          PROD_DETAILS=$(build_details "prod")
+
+          # Compose the comment body
+          COMMENT_BODY="## Terraform Plan — All Environments\\n\\n"
+          COMMENT_BODY+="| Environment | Result |\\n"
+          COMMENT_BODY+="|-------------|--------|\\n"
+          COMMENT_BODY+="| **dev** | ${DEV_SUMMARY} |\\n"
+          COMMENT_BODY+="| **qa** | ${QA_SUMMARY} |\\n"
+          COMMENT_BODY+="| **val** | ${VAL_SUMMARY} |\\n"
+          COMMENT_BODY+="| **prod** | ${PROD_SUMMARY} |\\n\\n"
+          COMMENT_BODY+="${DEV_DETAILS}\\n\\n"
+          COMMENT_BODY+="${QA_DETAILS}\\n\\n"
+          COMMENT_BODY+="${VAL_DETAILS}\\n\\n"
+          COMMENT_BODY+="${PROD_DETAILS}\\n\\n"
+          COMMENT_BODY+="---\\n*Pipeline: [$(Build.BuildNumber)]($(System.CollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId))*"
+
+          # Post to PR via Azure DevOps REST API
+          PR_ID="$(System.PullRequest.PullRequestId)"
+          API_URL="$(System.CollectionUri)$(System.TeamProject)/_apis/git/repositories/$(Build.Repository.ID)/pullRequests/${PR_ID}/threads?api-version=7.0"
+
+          PAYLOAD=$(cat <<JSONEOF
+          {
+            "comments": [
+              {
+                "parentCommentId": 0,
+                "content": "${COMMENT_BODY}",
+                "commentType": 1
+              }
+            ],
+            "status": 1
+          }
+          JSONEOF
+          )
+
+          HTTP_CODE=$(curl -s -o /tmp/pr-comment-response.txt -w "%{http_code}" \
+            -X POST "$API_URL" \
+            -H "Authorization: Bearer $(System.AccessToken)" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            echo "Plan summary posted to PR #${PR_ID}"
+          else
+            echo "##[warning]Failed to post PR comment (HTTP ${HTTP_CODE}). Ensure Build Service has 'Contribute to pull requests' permission."
+            cat /tmp/pr-comment-response.txt
+          fi
+        displayName: "Post plan summary to PR"
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)

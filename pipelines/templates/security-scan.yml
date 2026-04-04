@@ -7,13 +7,11 @@ jobs:
           checkov \
             --directory $(Build.SourcesDirectory)/terraform \
             --framework terraform \
-            --soft-fail \
             --compact \
-            --skip-check CKV_TF_1 \
+            --skip-check CKV_TF_1,CKV_TF_2 \
             --output cli \
             --output junitxml \
-            --output-file-path $(Build.ArtifactStagingDirectory) \
-            || true
+            --output-file-path $(Build.ArtifactStagingDirectory)
         displayName: "Run Checkov"
 
       - task: PublishTestResults@2
@@ -32,7 +30,7 @@ jobs:
           curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
           cd $(Build.SourcesDirectory)/terraform
           tflint --init || true
-          tflint --recursive --format compact || true
+          tflint --recursive --format compact
         displayName: "Run tflint"
 
   - job: js_lint
@@ -50,3 +48,12 @@ jobs:
           fi
           echo "All JavaScript files passed syntax check"
         displayName: "Validate JS syntax"
+
+  - job: manifest_validation
+    displayName: "Manifest validation"
+    steps:
+      - script: |
+          pip install pyyaml --quiet
+          python $(Build.SourcesDirectory)/pipelines/scripts/validate-manifests.py \
+            $(Build.SourcesDirectory)/terraform/manifests
+        displayName: "Validate manifests"

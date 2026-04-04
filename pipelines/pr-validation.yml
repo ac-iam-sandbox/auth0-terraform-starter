@@ -1,5 +1,9 @@
-# Runs on pull requests: security scan + validate + plan against dev.
+# Runs on pull requests: security scan + validate + plan ALL environments.
 # Pipeline name in Azure DevOps: "CIC - PR Validation"
+#
+# Flow: security → validate (dev) → plan dev → plan qa/val/prod (parallel) → PR comment.
+# Dev plan must pass before higher environments are planned.
+# All plan summaries are posted as a single PR comment for reviewer visibility.
 trigger: none
 
 pr:
@@ -13,28 +17,84 @@ pr:
 pool:
   vmImage: "ubuntu-latest"
 
-variables:
-  - group: na-dev-axon-cic
+# No pipeline-level variable group — each stage brings its own.
 
 stages:
+  # ── Stage 1: Security & quality (no credentials needed) ───────────
   - stage: security_and_quality
     displayName: "Security & quality"
     jobs:
       - template: templates/security-scan.yml
 
+  # ── Stage 2: Terraform validation (uses dev for init) ─────────────
   - stage: terraform_validation
     displayName: "Terraform validation"
     dependsOn: security_and_quality
+    variables:
+      - group: na-dev-axon-cic
     jobs:
       - template: templates/terraform-validate.yml
         parameters:
           environment: dev
 
-  - stage: terraform_plan
-    displayName: "Terraform plan (dev)"
+  # ── Stage 3: Plan dev (must pass before higher envs) ──────────────
+  - stage: plan_dev
+    displayName: "Plan (dev)"
     dependsOn: terraform_validation
+    variables:
+      - group: na-dev-axon-cic
     jobs:
       - template: templates/terraform-plan.yml
         parameters:
           environment: dev
+          region: na
+
+  # ── Stage 4a: Plan qa (parallel with val, prod) ───────────────────
+  - stage: plan_qa
+    displayName: "Plan (qa)"
+    dependsOn: plan_dev
+    variables:
+      - group: na-qa-axon-cic
+    jobs:
+      - template: templates/terraform-plan.yml
+        parameters:
+          environment: qa
+          region: na
+
+  # ── Stage 4b: Plan val (parallel with qa, prod) ───────────────────
+  - stage: plan_val
+    displayName: "Plan (val)"
+    dependsOn: plan_dev
+    variables:
+      - group: na-val-axon-cic
+    jobs:
+      - template: templates/terraform-plan.yml
+        parameters:
+          environment: val
+          region: na
+
+  # ── Stage 4c: Plan prod (parallel with qa, val) ───────────────────
+  - stage: plan_prod
+    displayName: "Plan (prod)"
+    dependsOn: plan_dev
+    variables:
+      - group: na-prod-axon-cic
+    jobs:
+      - template: templates/terraform-plan.yml
+        parameters:
+          environment: prod
+          region: na
+
+  # ── Stage 5: Post plan summary as PR comment ──────────────────────
+  - stage: pr_comment
+    displayName: "PR comment"
+    dependsOn:
+      - plan_dev
+      - plan_qa
+      - plan_val
+      - plan_prod
+    condition: succeededOrFailed()
+    jobs:
+      - template: templates/pr-comment.yml
+        parameters:
           region: na

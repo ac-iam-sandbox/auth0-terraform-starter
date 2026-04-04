@@ -66,6 +66,10 @@ resource "auth0_action" "this" {
       module_version_id = var.action_module_outputs[modules.value.module_key].version_id
     }
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # Trigger bindings — only includes active actions.

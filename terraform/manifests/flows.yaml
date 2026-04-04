@@ -1,13 +1,14 @@
 # Auth0 vault connection, flow, and form definitions.
 # https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/flow_vault_connection
 #
-# environments: Optional list of envs where a resource should exist.
-#               Omit = created in all environments.
+# environments: Required list of envs where a resource should exist.
+#               Every resource MUST have an explicit environments key.
 
 vault_connections:
   auth0-m2m:
     app_id: "AUTH0"
     name: "Auth0 M2M Connection"
+    environments: [dev, qa, val, prod]
     setup_static:
       type: "OAUTH_APP"
     setup_config:
