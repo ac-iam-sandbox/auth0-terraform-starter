@@ -11,6 +11,7 @@ locals {
   form_defs = lookup(var.definitions, "forms", try(var.definitions, {}))
 
   # Resolve code file per form using testing block pattern
+  # tflint-ignore: terraform_unused_declarations — will be used when auth0_form resource is implemented
   resolved_code = {
     for k, v in local.form_defs : k => (
       lookup(v, "testing", null) != null
