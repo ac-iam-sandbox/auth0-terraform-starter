@@ -8,9 +8,13 @@ variable "environment" {
   }
 }
 
-variable "secrets" {
-  description = "All secret values for this environment, keyed by reference name. Populated by pipeline from Key Vault."
-  type        = map(string)
+variable "secrets_json" {
+  description = "JSON string of secret values for this environment. Populated by pipeline via TF_VAR_secrets_json. Example: {\"VAULT_AUTH0_CLIENT_SECRET\":\"abc123\"}"
+  type        = string
   sensitive   = true
-  default     = {}
+  default     = "{}"
+}
+
+locals {
+  secrets = jsondecode(var.secrets_json)
 }

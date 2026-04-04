@@ -8,7 +8,7 @@ This repository follows these principles, arrived at through iterative design:
 
 1. **YAML manifests are the single source of truth.** All resource definitions (clients, actions, flows, vault connections) live in YAML files. Adding a resource means editing a YAML file and opening a PR — no HCL changes required.
 2. **No tfvars files.** The pipeline passes `environment` as a single `-var` flag. All other config lives in YAML manifests with per-environment overrides. This avoids two config systems.
-3. **Secrets are reference names in YAML, values from the pipeline.** Non-secret values (domains, client IDs, URLs) are version-controlled in manifests. Secret values flow from Azure DevOps Variable Groups → `TF_VAR_secrets` environment variable.
+3. **Secrets are reference names in YAML, values from the pipeline.** Non-secret values (domains, client IDs, URLs) are version-controlled in manifests. Secret values flow from Azure DevOps Variable Groups → `VAULT_AUTH0_CLIENT_SECRET` environment variable.
 4. **Deployment and promotion are separate.** Merging to `master` auto-deploys to dev only. Higher environments require manually triggering the promote pipeline. This prevents accidental rollout.
 5. **Two-file versioning for actions/modules/forms.** Each artifact has one canonical file (`main.js` / `main.json`). During development, a temporary `next.js` / `next.json` exists alongside it. The manifest `testing` block controls which environments use the new version. Maximum two files per artifact.
 6. **`prevent_destroy` on critical resources.** Clients and vault connections have `lifecycle { prevent_destroy = true }` to prevent accidental deletion.
@@ -114,7 +114,7 @@ Each group is scoped to one Auth0 tenant. These already exist in your project.
 
 | Variable Group | Variables |
 |---|---|
-| `na-dev-axon-cic` | `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, `AUTH0_DOMAIN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `TF_STATE_BUCKET`, `TF_VAR_secrets` |
+| `na-dev-axon-cic` | `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, `AUTH0_DOMAIN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `TF_STATE_BUCKET`, `VAULT_AUTH0_CLIENT_SECRET` |
 | `na-qa-axon-cic` | Same variables, qa-specific values |
 | `na-val-axon-cic` | Same variables, val-specific values |
 | `na-prod-axon-cic` | Same variables, prod-specific values |
@@ -124,7 +124,7 @@ Each group is scoped to one Auth0 tenant. These already exist in your project.
 - `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, `AUTH0_DOMAIN` — Terraform M2M app credentials per tenant. Provider reads these from env vars automatically. [Provider docs](https://github.com/auth0/terraform-provider-auth0/blob/main/docs/index.md)
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` — AWS credentials for S3 state backend
 - `TF_STATE_BUCKET` — S3 bucket name, injected at `terraform init` via `-backend-config="bucket=$(TF_STATE_BUCKET)"`
-- `TF_VAR_secrets` — JSON string of secret values. Terraform reads it automatically (`TF_VAR_` prefix maps to `var.secrets`). Start with: `{"VAULT_AUTH0_CLIENT_SECRET":"your-secret"}`
+- `VAULT_AUTH0_CLIENT_SECRET` — JSON string of secret values. Terraform reads it automatically (`TF_VAR_` prefix maps to `var.secrets_json`). Start with: `{"VAULT_AUTH0_CLIENT_SECRET":"your-secret"}`
 
 The former `terraform-common-axon-cic` group is not needed. Terraform version is pinned in the pipeline template. Node version is irrelevant (Auth0 manages action runtimes).
 
@@ -196,7 +196,7 @@ Defined in `manifests/flows.yaml`:
 |---|---|---|
 | `auth0-m2m` | Auth0 M2M Connection | Auth0 Management API access for flows |
 
-Setup config: `type` and env-specific `domain`/`client_id` in manifest (version controlled). Only `client_secret` from pipeline via `TF_VAR_secrets`.
+Setup config: `type` and env-specific `domain`/`client_id` in manifest (version controlled). Only `client_secret` from pipeline via `VAULT_AUTH0_CLIENT_SECRET`.
 
 ---
 
@@ -208,7 +208,7 @@ Setup config: `type` and env-specific `domain`/`client_id` in manifest (version 
 | Client callback URLs | `manifests/clients.yaml` | Not secret, env-specific |
 | Vault connection domain | `manifests/flows.yaml` (per-env) | Not secret, env-specific |
 | Vault connection client_id | `manifests/flows.yaml` (per-env) | Not secret, env-specific |
-| Vault connection client_secret | `TF_VAR_secrets` in variable group | **Secret** |
+| Vault connection client_secret | `VAULT_AUTH0_CLIENT_SECRET` in variable group (masked) | **Secret** |
 | Auth0 provider credentials | `AUTH0_*` in variable group | **Secret** |
 | AWS credentials | `AWS_*` in variable group | **Secret** |
 | S3 bucket name | `TF_STATE_BUCKET` in variable group | Already in your groups |
@@ -253,7 +253,7 @@ Forms use the same `main.json`/`next.json`/`testing` pattern.
 ## Getting started — first deployment
 
 1. **Verify variable groups** in Azure DevOps have all required variables (see table above)
-2. **Add `TF_VAR_secrets`** to each variable group: `{"VAULT_AUTH0_CLIENT_SECRET":"actual-secret-value"}`
+2. **Add `VAULT_AUTH0_CLIENT_SECRET`** to each variable group: `{"VAULT_AUTH0_CLIENT_SECRET":"actual-secret-value"}`
 3. **Create environments** manually: `na-dev-axon-cic`, `na-qa-axon-cic`, `na-val-axon-cic`, `na-prod-axon-cic`
 4. **Create three pipelines** pointing to the YAML files in `pipelines/`
 5. **Update `manifests/clients.yaml`**: replace Marlo callback URLs with real domains
@@ -277,7 +277,7 @@ Forms use the same `main.json`/`next.json`/`testing` pattern.
 
 ### New vault connection
 1. Add entry to `manifests/flows.yaml` under `vault_connections`
-2. Add secret values to `TF_VAR_secrets` in each variable group
+2. Add secret values to `VAULT_AUTH0_CLIENT_SECRET` in each variable group
 3. PR → merge → deploy-dev → promote
 
 ### New form/flow

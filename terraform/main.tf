@@ -18,7 +18,7 @@ locals {
 module "vault_connections" {
   source      = "./modules/vault_connections"
   definitions = local.vault_conns
-  secrets     = var.secrets
+  secrets     = local.secrets
   environment = var.environment
 }
 
@@ -26,7 +26,7 @@ module "vault_connections" {
 module "action_modules" {
   source      = "./modules/action_modules"
   definitions = local.action_modules
-  secrets     = var.secrets
+  secrets     = local.secrets
   environment = var.environment
 }
 
@@ -34,7 +34,7 @@ module "action_modules" {
 module "actions" {
   source                = "./modules/actions"
   definitions           = local.actions
-  secrets               = var.secrets
+  secrets               = local.secrets
   environment           = var.environment
   action_module_outputs = module.action_modules.module_map
 }
