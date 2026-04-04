@@ -2,12 +2,28 @@
 # https://registry.terraform.io/providers/auth0/auth0/latest/docs/data-sources/action_module_versions
 
 locals {
-  # Resolve code file: if testing block exists and current env is listed, use testing file.
+  # Resolve code file: testing block → next.js, otherwise → main.js
   resolved_code = {
     for k, v in var.definitions : k => (
       lookup(v, "testing", null) != null
       && contains(lookup(lookup(v, "testing", {}), "envs", []), var.environment)
     ) ? v.testing.file : v.code
+  }
+
+  # Build merged secrets map per module: config values (env-resolved) + pipeline secrets
+  resolved_secrets = {
+    for k, v in var.definitions : k => merge(
+      # Config values resolved per environment
+      {
+        for sk, sv in lookup(v, "secrets_config", {}) :
+        sk => lookup(sv, var.environment, lookup(sv, "default", ""))
+      },
+      # Pipeline secrets
+      {
+        for secret_name in lookup(v, "secrets_pipeline", []) :
+        secret_name => var.secrets[secret_name]
+      }
+    )
   }
 }
 
@@ -27,15 +43,15 @@ resource "auth0_action_module" "this" {
   }
 
   dynamic "secrets" {
-    for_each = lookup(each.value, "secrets", [])
+    for_each = local.resolved_secrets[each.key]
     content {
-      name  = secrets.value
-      value = var.secrets[secrets.value]
+      name  = secrets.key
+      value = secrets.value
     }
   }
 }
 
-# Retrieve published versions — always use the latest.
+# Retrieve published versions — actions reference the latest.
 data "auth0_action_module_versions" "this" {
   for_each  = var.definitions
   module_id = auth0_action_module.this[each.key].id

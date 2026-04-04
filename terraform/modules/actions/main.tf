@@ -2,19 +2,33 @@
 # https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/trigger_actions
 
 locals {
-  # Resolve code file: if testing block exists and current env is listed, use testing file.
+  # Resolve code file: testing block → next.js, otherwise → main.js
   resolved_code = {
     for k, v in var.definitions : k => (
       lookup(v, "testing", null) != null
       && contains(lookup(lookup(v, "testing", {}), "envs", []), var.environment)
     ) ? v.testing.file : v.code
   }
+
+  # Build merged secrets map per action: config values (env-resolved) + pipeline secrets
+  resolved_secrets = {
+    for k, v in var.definitions : k => merge(
+      {
+        for sk, sv in lookup(v, "secrets_config", {}) :
+        sk => lookup(sv, var.environment, lookup(sv, "default", ""))
+      },
+      {
+        for secret_name in lookup(v, "secrets_pipeline", []) :
+        secret_name => var.secrets[secret_name]
+      }
+    )
+  }
 }
 
 resource "auth0_action" "this" {
   for_each = var.definitions
 
-  name    = each.key
+  name    = each.value.name
   runtime = each.value.runtime
   deploy  = each.value.deploy
   code    = file("${path.root}/actions/${each.key}/${local.resolved_code[each.key]}")
@@ -33,13 +47,15 @@ resource "auth0_action" "this" {
   }
 
   dynamic "secrets" {
-    for_each = lookup(each.value, "secrets", [])
+    for_each = local.resolved_secrets[each.key]
     content {
-      name  = secrets.value
-      value = var.secrets[secrets.value]
+      name  = secrets.key
+      value = secrets.value
     }
   }
 
+  # Bind action modules — module_id and module_version_id resolved from action_modules output.
+  # Terraform creates modules before actions (dependency graph) so version IDs are available.
   dynamic "modules" {
     for_each = lookup(each.value, "modules", [])
     content {
@@ -49,12 +65,19 @@ resource "auth0_action" "this" {
   }
 }
 
-# Group actions by trigger for binding.
+# Trigger bindings — order matters.
+# Actions are grouped by trigger. The order of actions blocks defines execution order.
+# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/trigger_actions
 locals {
   triggers = distinct([for k, v in var.definitions : v.trigger])
+
+  # Preserve insertion order from the YAML by using keys()
   actions_by_trigger = {
     for trigger in local.triggers : trigger => [
-      for k, v in var.definitions : { key = k, name = k } if v.trigger == trigger
+      for k in keys(var.definitions) : {
+        key  = k
+        name = var.definitions[k].name
+      } if var.definitions[k].trigger == trigger
     ]
   }
 }

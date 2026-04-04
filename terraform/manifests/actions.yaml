@@ -1,64 +1,37 @@
 # Auth0 action definitions.
 # https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/action
+# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/trigger_actions
 #
 # Each action has ONE canonical file: main.js
-# During active development, a temporary next.js exists alongside it.
+# During development, next.js exists alongside it.
 # The "testing" block controls which environments run next.js.
 #
-# To develop a new version of an action:
-#   1. Create actions/<name>/next.js with new code
-#   2. Add a testing block below with envs: ["dev"]
-#   3. PR → merge → deploy-dev auto-runs
-#   4. To promote: add envs to the list (e.g. ["dev", "qa"])
-#   5. After full promotion: overwrite main.js with next.js content,
-#      delete next.js, remove the testing block
+# Trigger ordering: actions are bound to triggers via auth0_trigger_actions
+# in the order they appear under each trigger group below. The list order
+# in the "actions" block IS the execution order.
+#
+# Secrets follow the same pattern as action modules:
+#   secrets_config:   Non-secret per-env values (URLs, identifiers)
+#   secrets_pipeline: Actual secrets from the pipeline variable group
 actions:
-  enrich-token:
-    trigger: "post-login"
-    trigger_version: "v3"
-    runtime: "node18"
-    deploy: true
-    code: "main.js"
-    dependencies:
-      axios: "1.7.2"
-    secrets:
-      - "ENRICH_TOKEN_API_KEY"
-    modules:
-      - module_key: "auth-utils"
-    # testing:                          # Uncomment when developing
-    #   file: "next.js"
-    #   envs: ["dev"]
-
-  sync-user-metadata:
-    trigger: "post-login"
-    trigger_version: "v3"
-    runtime: "node18"
-    deploy: true
-    code: "main.js"
-    dependencies: {}
-    secrets:
-      - "SYNC_DB_CONN_STR"
-    modules: []
-
-  block-disposable-email:
-    trigger: "pre-registration"
+  enrich-signup-profile:
+    name: "Enrich Signup Profile"
+    trigger: "pre-user-registration"
     trigger_version: "v2"
     runtime: "node18"
     deploy: true
     code: "main.js"
-    dependencies:
-      disposable-email-domains: "1.0.62"
-    secrets: []
-    modules: []
-
-  log-login-event:
-    trigger: "post-login"
-    trigger_version: "v3"
-    runtime: "node18"
-    deploy: true
-    code: "main.js"
     dependencies: {}
-    secrets:
-      - "LOG_LOGIN_ENDPOINT"
+    # Non-secret config stored as Auth0 action secrets.
+    secrets_config:
+      API_BASE_URL:
+        dev:  "https://dev2.nonprod-store.myalcon.com"
+        qa:   "REPLACE_WITH_QA_API_URL"
+        val:  "REPLACE_WITH_VAL_API_URL"
+        prod: "REPLACE_WITH_PROD_API_URL"
+    secrets_pipeline: []
+    # Module references — Terraform resolves module_id and module_version_id automatically.
+    # Single pipeline run: modules are created/published first (dependency graph), then actions.
     modules:
-      - module_key: "logging-helpers"
+      - module_key: "entry-path-verification"
+      - module_key: "signup-validation"

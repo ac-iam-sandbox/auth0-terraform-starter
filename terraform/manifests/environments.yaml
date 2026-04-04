@@ -2,14 +2,14 @@
 # Non-secret, version-controlled settings per Auth0 tenant.
 environments:
   dev:
-    auth0_domain: "axon-dev.us.auth0.com"
+    auth0_domain: "apac-dev-axon-cic.jp.auth0.com"
     region: "na"
   qa:
-    auth0_domain: "axon-qa.us.auth0.com"
+    auth0_domain: "REPLACE_WITH_QA_DOMAIN"
     region: "na"
   val:
-    auth0_domain: "axon-val.us.auth0.com"
+    auth0_domain: "REPLACE_WITH_VAL_DOMAIN"
     region: "na"
   prod:
-    auth0_domain: "axon.us.auth0.com"
+    auth0_domain: "REPLACE_WITH_PROD_DOMAIN"
     region: "na"

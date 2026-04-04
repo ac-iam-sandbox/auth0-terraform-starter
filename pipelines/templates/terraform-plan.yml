@@ -28,10 +28,11 @@ jobs:
           AUTH0_CLIENT_ID: $(AUTH0_CLIENT_ID)
           AUTH0_CLIENT_SECRET: $(AUTH0_CLIENT_SECRET)
           # Secrets assembled from individual masked pipeline variables.
-          # Add new entries here as you add secrets to your variable groups.
+          # Add new entries here when you add secrets to variable groups.
           TF_VAR_secrets_json: >-
             {
-              "VAULT_AUTH0_CLIENT_SECRET": "$(VAULT_AUTH0_CLIENT_SECRET)"
+              "VAULT_AUTH0_CLIENT_SECRET": "$(VAULT_AUTH0_CLIENT_SECRET)",
+              "MANAGEMENT_API_CLIENT_SECRET": "$(MANAGEMENT_API_CLIENT_SECRET)"
             }
 
       - script: |

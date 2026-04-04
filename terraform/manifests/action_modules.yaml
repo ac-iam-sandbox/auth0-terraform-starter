@@ -1,24 +1,50 @@
 # Auth0 action module definitions (shared reusable code).
 # https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/action_module
 #
-# publish: true creates an immutable version in Auth0.
-# Actions always consume the latest published version.
-# The promotion pipeline controls when higher environments see new module code.
-#
 # Same main.js / next.js / testing pattern as actions.
+#
+# Secrets come from two sources:
+#   secrets_config: Non-secret values stored per-env in this manifest
+#                   (Auth0 treats them as module secrets, but they're not sensitive)
+#   secrets_pipeline: Actual secrets injected from pipeline variable group
 action_modules:
-  auth-utils:
-    name: "Auth Utilities"
-    publish: true
-    code: "main.js"
-    dependencies:
-      lodash: "4.17.21"
-    secrets:
-      - "AUTH_UTILS_INTERNAL_API_KEY"
-
-  logging-helpers:
-    name: "Logging Helpers"
+  entry-path-verification:
+    name: "Entry Path Verification"
     publish: true
     code: "main.js"
     dependencies: {}
-    secrets: []
+    secrets_config: {}
+    secrets_pipeline: []
+
+  account-linking:
+    name: "Account Linking"
+    publish: true
+    code: "main.js"
+    dependencies:
+      auth0: "latest"
+    # Non-secret config values that Auth0 stores as module secrets.
+    # Per-environment — resolved using var.environment.
+    secrets_config:
+      MANAGEMENT_API_DOMAIN:
+        dev:  "apac-dev-axon-cic.jp.auth0.com"
+        qa:   "REPLACE_WITH_QA_DOMAIN"
+        val:  "REPLACE_WITH_VAL_DOMAIN"
+        prod: "REPLACE_WITH_PROD_DOMAIN"
+      MANAGEMENT_API_CLIENT_ID:
+        dev:  "gjiDHBkE6ewiGNs8Pc9qQU4vvelZJisM"
+        qa:   "REPLACE_WITH_QA_CLIENT_ID"
+        val:  "REPLACE_WITH_VAL_CLIENT_ID"
+        prod: "REPLACE_WITH_PROD_CLIENT_ID"
+    # Actual secrets — names only, values from pipeline variable group.
+    secrets_pipeline:
+      - "MANAGEMENT_API_CLIENT_SECRET"
+
+  signup-validation:
+    name: "Signup Validation"
+    publish: true
+    code: "main.js"
+    dependencies:
+      joi: "latest"
+      libphonenumber-js: "latest"
+    secrets_config: {}
+    secrets_pipeline: []
