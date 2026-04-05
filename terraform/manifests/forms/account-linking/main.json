@@ -1,5 +1,5 @@
 {
-  "version": "4.0.0",
+  "flows": {},
   "form": {
     "name": "Account Linking",
     "languages": {
@@ -90,7 +90,5 @@
     "style": {
       "css": "/* Text input override – flat bottom-border style */\n.af-stringField-input {\n    border: none !important;\n    border-bottom: 1px solid #9ca3af !important;\n    border-radius: 0 !important;\n    background-color: #f9fafb !important;\n    padding: 12px !important;\n    font-size: 14px !important;\n    color: #1f2937 !important;\n    transition: background-color 0.2s ease !important;\n}\n\n.af-stringField-input:focus {\n    background-color: #f3f4f6 !important;\n    border-bottom-color: #4b5563 !important;\n    box-shadow: none !important;\n}\n\n.af-stringField-input::placeholder {\n    color: #6b7280 !important;\n}\n\n.af-stringField-input:hover {\n    box-shadow: none !important;\n}\n\n/* Center the logo */\n.af-imageBlock-wrapper {\n    text-align: center !important;\n}\n\n.af-imageBlock-wrapper img {\n    margin: 0 auto !important;\n    display: block !important;\n}\n\n/* Center the form container itself */\n.af-form {\n    margin: 0 auto !important;\n}"
     }
-  },
-  "flows": {},
-  "connections": {}
+  }
 }

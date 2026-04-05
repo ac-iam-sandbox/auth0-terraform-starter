@@ -1,12 +1,24 @@
 {
-  "version": "4.0.0",
   "form": {
     "name": "MFA Challenge",
-    "languages": { "primary": "en" },
-    "start": { "coordinates": { "x": 0, "y": 0 }, "next_node": "step_mfa1" },
+    "languages": {
+      "primary": "en"
+    },
+    "start": {
+      "coordinates": {
+        "x": 0,
+        "y": 0
+      },
+      "next_node": "step_mfa1"
+    },
     "nodes": [],
-    "ending": { "resume_flow": true, "coordinates": { "x": 1250, "y": 0 } }
+    "ending": {
+      "resume_flow": true,
+      "coordinates": {
+        "x": 1250,
+        "y": 0
+      }
+    }
   },
-  "flows": {},
-  "connections": {}
+  "flows": {}
 }

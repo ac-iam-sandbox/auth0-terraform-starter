@@ -253,7 +253,8 @@ auth0-infrastructure/
     ├── promote.yml                                 # Manual → qa | val | prod
     ├── pr-validation.yml                           # Auto on PR (plans dev + qa only)
     ├── scripts/
-    │   └── validate-manifests.py                   # Manifest validation + safety enforcement
+    │   ├── validate-manifests.py                   # Manifest validation + safety enforcement
+    │   └── clean-export.py                         # Strips metadata from Auth0 form exports
     └── templates/
         ├── security-scan.yml                       # Checkov, tflint, JS lint, manifest validation
         ├── terraform-validate.yml
@@ -721,7 +722,8 @@ Forms and flows are managed as **exported dashboard JSON snapshots**. The Auth0 
 
 **Architecture:**
 - Each form's exported JSON is stored in `manifests/forms/{form-name}/main.json`
-- The export contains the form definition, all referenced flows, vault connection placeholders, translations, and styling
+- Exports are **cleaned before committing** — only `form` and `flows` sections are kept
+- Auth0's export includes a `connections` section with hardcoded vault connection IDs and a `version` field — these are environment-specific metadata that Terraform does not use and must be stripped to avoid confusion
 - Terraform extracts flows from the export, replaces `#CONN-N#` placeholders with vault connection IDs, and creates `auth0_flow` resources
 - Terraform extracts the form definition, replaces `#FLOW-N#` placeholders with flow IDs, and creates the `auth0_form` resource
 
@@ -732,19 +734,30 @@ Forms and flows are managed as **exported dashboard JSON snapshots**. The Auth0 
 **Adding a new form:**
 1. Design and validate the form in the Auth0 dashboard
 2. Export the form JSON from the dashboard
-3. Save as `manifests/forms/{form-name}/main.json`
-4. Inspect the export for placeholder tokens (`#FLOW-N#`, `#CONN-N#`)
+3. Clean the export: `python pipelines/scripts/clean-export.py exported_file.json --output manifests/forms/{form-name}/main.json`
+4. Inspect the cleaned file for placeholder tokens (`#FLOW-N#`, `#CONN-N#`)
 5. Add entries to `flows.yaml`: one `flows` entry per `#FLOW-N#` token, one `forms` entry with `flow_refs` mapping each `#FLOW-N#` to its flow key
-6. PR -> merge -> deploy
+6. PR → merge → deploy
+7. The pipeline validates that exports are clean — unclean exports fail the manifest validation
 
 **Updating a form:**
 1. Modify in the Auth0 dashboard
 2. Re-export the JSON
-3. To test: save as `next.json`, add `testing` block with `envs: [dev]`
-4. When tested: overwrite `main.json` with `next.json`, remove `next.json` and `testing` block
-5. Promote to val/prod (they always read `main.json`)
+3. Clean the export: `python pipelines/scripts/clean-export.py exported_file.json`
+4. To test: save cleaned export as `next.json`, add `testing` block with `envs: [dev]`
+5. When tested: overwrite `main.json` with `next.json`, remove `next.json` and `testing` block
+6. Promote to val/prod (they always read `main.json`)
 
-**Translations** are inside the export JSON. A translation change requires re-exporting from the dashboard (or carefully editing the `translations` section in the JSON). Translations go through the same promotion workflow as structural changes — they do not reach production without approval.
+**What the clean-export script removes and why:**
+
+| Section | Removed? | Reason |
+|---|---|---|
+| `form` | Kept | Form definition — consumed by Terraform forms module |
+| `flows` | Kept | Flow definitions with `#CONN-N#` placeholders — consumed by Terraform flows module |
+| `connections` | **Removed** | Contains hardcoded vault connection IDs from the exporting tenant — Terraform injects real IDs via the manifest's `conn_refs` |
+| `version` | **Removed** | Auth0 export format version — not used by Terraform |
+
+**Translations** are inside the `form` section of the export and are kept. A translation change requires re-exporting from the dashboard (or carefully editing the `translations` section in the JSON). Translations go through the same promotion workflow as structural changes — they do not reach production without approval.
 
 ---
 

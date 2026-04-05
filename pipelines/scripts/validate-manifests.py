@@ -281,8 +281,10 @@ def validate_form_refs(forms, flows):
 
 
 def validate_form_files(forms, manifests_dir):
-    """Check that form export JSON files exist on disk."""
+    """Check that form export JSON files exist and are cleaned."""
     errors = []
+    ALLOWED_KEYS = {"form", "flows"}
+
     for form_key, form_def in (forms or {}).items():
         if not isinstance(form_def, dict):
             continue
@@ -293,6 +295,23 @@ def validate_form_files(forms, manifests_dir):
                 f"flows.yaml -> forms.{form_key}: export file not found: "
                 f"forms/{form_key}/{code}"
             )
+        else:
+            # Check for unclean export (contains metadata Terraform doesn't use)
+            import json
+            try:
+                with open(form_path, "r") as fh:
+                    export_data = json.load(fh)
+                extra_keys = set(export_data.keys()) - ALLOWED_KEYS
+                if extra_keys:
+                    errors.append(
+                        f"flows.yaml -> forms.{form_key}: export file forms/{form_key}/{code} "
+                        f"contains metadata keys that should be removed: {', '.join(sorted(extra_keys))}. "
+                        f"Run: python pipelines/scripts/clean-export.py forms/{form_key}/{code}"
+                    )
+            except json.JSONDecodeError as e:
+                errors.append(
+                    f"flows.yaml -> forms.{form_key}: invalid JSON in forms/{form_key}/{code}: {e}"
+                )
 
         # Check testing file exists if testing block present
         testing = form_def.get("testing")
@@ -303,6 +322,20 @@ def validate_form_files(forms, manifests_dir):
                     f"flows.yaml -> forms.{form_key}: testing file not found: "
                     f"forms/{form_key}/{testing['file']}"
                 )
+            elif os.path.exists(test_path):
+                import json
+                try:
+                    with open(test_path, "r") as fh:
+                        test_data = json.load(fh)
+                    extra_keys = set(test_data.keys()) - ALLOWED_KEYS
+                    if extra_keys:
+                        errors.append(
+                            f"flows.yaml -> forms.{form_key}: testing file forms/{form_key}/{testing['file']} "
+                            f"contains metadata keys: {', '.join(sorted(extra_keys))}. "
+                            f"Run: python pipelines/scripts/clean-export.py forms/{form_key}/{testing['file']}"
+                        )
+                except json.JSONDecodeError:
+                    pass
     return errors
 
 

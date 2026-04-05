@@ -1,150 +1,4 @@
 {
-  "version": "4.0.0",
-  "form": {
-    "name": "Email Verification",
-    "languages": {
-      "primary": "en",
-      "default": "en"
-    },
-    "translations": {
-      "ja": {
-        "ending": null,
-        "messages": {
-          "custom": {},
-          "errors": {}
-        },
-        "components": {
-          "rich_text_Cqas": {
-            "config": {
-              "content": "<h2>検証コード</h2><p>{{context.user.email}} に送信された認証コードを入力してください。メールをご確認のうえ、下のコードを入力してください。</p>"
-            }
-          },
-          "next_button_BtEe": {
-            "config": {
-              "text": "確認する"
-            }
-          },
-          "verification_code": {
-            "label": "認証コード"
-          },
-          "resend_button_7eih": {
-            "config": {
-              "active_text": "コードが届きませんか？",
-              "button_text": "再送する",
-              "waiting_text": "{{remaining_seconds}} 秒後に再送できます"
-            }
-          }
-        }
-      }
-    },
-    "nodes": [
-      {
-        "id": "verification_step",
-        "type": "STEP",
-        "coordinates": {
-          "x": 422,
-          "y": -100
-        },
-        "alias": "Email verification",
-        "config": {
-          "components": [
-            {
-              "id": "ext_translation_script",
-              "category": "BLOCK",
-              "type": "HTML",
-              "config": {
-                "content": "<script type=\"text/javascript\">\n  var connectionType = \"{{ fields.connection_type }}\" || \"\";\n  var formType = \"email_verification\";\n\n  applyFormsTranslations(connectionType, formType);\n</script>"
-              }
-            },
-            {
-              "id": "rich_text_Cqas",
-              "category": "BLOCK",
-              "type": "RICH_TEXT",
-              "config": {
-                "content": "<h2>Verification code</h2><p>A verification code was sent to <strong>{{context.user.email}}</strong>. Check your email and enter the code below.</p>"
-              }
-            },
-            {
-              "id": "verification_code",
-              "category": "FIELD",
-              "type": "NUMBER",
-              "label": "Verification code",
-              "required": true,
-              "sensitive": false
-            },
-            {
-              "id": "next_button_BtEe",
-              "category": "BLOCK",
-              "type": "NEXT_BUTTON",
-              "config": {
-                "text": "Verify"
-              }
-            },
-            {
-              "id": "resend_button_7eih",
-              "category": "BLOCK",
-              "type": "RESEND_BUTTON",
-              "config": {
-                "active_text": "Didn't receive the code?",
-                "button_text": "Resend",
-                "waiting_text": "Resend in {{remaining_seconds}} seconds",
-                "text_alignment": "CENTER",
-                "flow_id": "#FLOW-1#",
-                "max_attempts": 3,
-                "waiting_time": 60
-              }
-            }
-          ],
-          "next_node": "verify_otp_update_user"
-        }
-      },
-      {
-        "id": "verify_otp_update_user",
-        "type": "FLOW",
-        "coordinates": {
-          "x": 982,
-          "y": 52
-        },
-        "alias": "Verify OTP and Update User",
-        "config": {
-          "flow_id": "#FLOW-2#",
-          "next_node": "$ending"
-        }
-      },
-      {
-        "id": "generate_otp_send_email",
-        "type": "FLOW",
-        "coordinates": {
-          "x": 56,
-          "y": 56
-        },
-        "alias": "Generate OTP and Send Email",
-        "config": {
-          "flow_id": "#FLOW-1#",
-          "next_node": "verification_step"
-        }
-      }
-    ],
-    "start": {
-      "hidden_fields": [
-        {
-          "key": "connection_type"
-        }
-      ],
-      "next_node": "generate_otp_send_email",
-      "coordinates": {
-        "x": -197,
-        "y": 39
-      }
-    },
-    "ending": {
-      "resume_flow": true,
-      "coordinates": {
-        "x": 1357,
-        "y": 29
-      }
-    }
-  },
   "flows": {
     "#FLOW-1#": {
       "name": "Verify Email (OTP and Send Email)",
@@ -292,11 +146,149 @@
       ]
     }
   },
-  "connections": {
-    "#CONN-1#": {
-      "id": "ac_ifogd4q4XaBEAWTgqsNGjE",
-      "app_id": "AUTH0",
-      "name": "Auth0"
+  "form": {
+    "name": "Email Verification",
+    "languages": {
+      "primary": "en",
+      "default": "en"
+    },
+    "translations": {
+      "ja": {
+        "ending": null,
+        "messages": {
+          "custom": {},
+          "errors": {}
+        },
+        "components": {
+          "rich_text_Cqas": {
+            "config": {
+              "content": "<h2>検証コード</h2><p>{{context.user.email}} に送信された認証コードを入力してください。メールをご確認のうえ、下のコードを入力してください。</p>"
+            }
+          },
+          "next_button_BtEe": {
+            "config": {
+              "text": "確認する"
+            }
+          },
+          "verification_code": {
+            "label": "認証コード"
+          },
+          "resend_button_7eih": {
+            "config": {
+              "active_text": "コードが届きませんか？",
+              "button_text": "再送する",
+              "waiting_text": "{{remaining_seconds}} 秒後に再送できます"
+            }
+          }
+        }
+      }
+    },
+    "nodes": [
+      {
+        "id": "verification_step",
+        "type": "STEP",
+        "coordinates": {
+          "x": 422,
+          "y": -100
+        },
+        "alias": "Email verification",
+        "config": {
+          "components": [
+            {
+              "id": "ext_translation_script",
+              "category": "BLOCK",
+              "type": "HTML",
+              "config": {
+                "content": "<script type=\"text/javascript\">\n  var connectionType = \"{{ fields.connection_type }}\" || \"\";\n  var formType = \"email_verification\";\n\n  applyFormsTranslations(connectionType, formType);\n</script>"
+              }
+            },
+            {
+              "id": "rich_text_Cqas",
+              "category": "BLOCK",
+              "type": "RICH_TEXT",
+              "config": {
+                "content": "<h2>Verification code</h2><p>A verification code was sent to <strong>{{context.user.email}}</strong>. Check your email and enter the code below.</p>"
+              }
+            },
+            {
+              "id": "verification_code",
+              "category": "FIELD",
+              "type": "NUMBER",
+              "label": "Verification code",
+              "required": true,
+              "sensitive": false
+            },
+            {
+              "id": "next_button_BtEe",
+              "category": "BLOCK",
+              "type": "NEXT_BUTTON",
+              "config": {
+                "text": "Verify"
+              }
+            },
+            {
+              "id": "resend_button_7eih",
+              "category": "BLOCK",
+              "type": "RESEND_BUTTON",
+              "config": {
+                "active_text": "Didn't receive the code?",
+                "button_text": "Resend",
+                "waiting_text": "Resend in {{remaining_seconds}} seconds",
+                "text_alignment": "CENTER",
+                "flow_id": "#FLOW-1#",
+                "max_attempts": 3,
+                "waiting_time": 60
+              }
+            }
+          ],
+          "next_node": "verify_otp_update_user"
+        }
+      },
+      {
+        "id": "verify_otp_update_user",
+        "type": "FLOW",
+        "coordinates": {
+          "x": 982,
+          "y": 52
+        },
+        "alias": "Verify OTP and Update User",
+        "config": {
+          "flow_id": "#FLOW-2#",
+          "next_node": "$ending"
+        }
+      },
+      {
+        "id": "generate_otp_send_email",
+        "type": "FLOW",
+        "coordinates": {
+          "x": 56,
+          "y": 56
+        },
+        "alias": "Generate OTP and Send Email",
+        "config": {
+          "flow_id": "#FLOW-1#",
+          "next_node": "verification_step"
+        }
+      }
+    ],
+    "start": {
+      "hidden_fields": [
+        {
+          "key": "connection_type"
+        }
+      ],
+      "next_node": "generate_otp_send_email",
+      "coordinates": {
+        "x": -197,
+        "y": 39
+      }
+    },
+    "ending": {
+      "resume_flow": true,
+      "coordinates": {
+        "x": 1357,
+        "y": 29
+      }
     }
   }
 }
