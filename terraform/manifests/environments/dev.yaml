@@ -1,5 +1,5 @@
 # Dev environment configuration.
-# Nested by resource type — mirrors manifest structure.
+# Nested by resource type - mirrors manifest structure.
 
 tenant:
   auth0_domain: "na-dev-axon-cic.us.auth0.com"

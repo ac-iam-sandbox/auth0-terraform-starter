@@ -1,14 +1,7 @@
-# Auth0 client definitions.
-# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/client
-#
-# Env-specific values (callbacks, URLs) come from environments/{env}.yaml
-# under the "clients" section, keyed by the client key below.
-#
-# Required "environments" list controls which envs a client exists in.
-# Every resource MUST have an explicit environments key.
-# Example: environments: ["dev", "qa"]  → only created in dev and qa.
-#
-# M2M client grants are NOT managed here — separate team uses outputted client_id.
+# Auth0 Client Applications
+# Each client application is defined with its name, description, type, environments, OIDC conformance, grant types, JWT algorithm, and refresh token settings (if applicable).
+# M2M applications will be defined here but client grants will be configured by the platfrom ops team.
+
 clients:
   auth0-actions:
     name: "Auth0 Actions Service"
@@ -21,7 +14,7 @@ clients:
 
   auth0-vault:
     name: "Auth0 Vault Service"
-    description: "M2M app for vault connections — email provider config, user password and profile updates"
+    description: "M2M app for vault connections - email provider config, user password and profile updates"
     app_type: "non_interactive"
     environments: [dev, qa, val, prod]
     oidc_conformant: true

@@ -1,12 +1,7 @@
 # Runs on pull requests: security scan + validate + plan dev and qa.
-# Pipeline name in Azure DevOps: "CIC - PR Validation"
-#
-# Flow: security → validate (dev) → plan dev → plan qa (parallel) → PR comment.
-# Val/prod plans are intentionally excluded to limit credential exposure.
-# Val/prod plans run only during the promote pipeline (manual trigger with approval).
-#
 # Binary plan artifacts are NOT published for PRs (no apply stage).
-# Only plan summaries are published for the PR comment.
+# Note: This pipeline is for PR validation only. It does NOT include an apply stage.
+
 trigger: none
 
 pr:

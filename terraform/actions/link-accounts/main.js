@@ -75,7 +75,7 @@ exports.onExecutePostLogin = async (event, api) => {
 
   if (!email) {
     if (!hasValidEntryPath(event)) {
-      console.log("No email and no valid entry path — denying");
+      console.log("No email and no valid entry path - denying");
       denyWithLogout(
         event,
         api,
@@ -98,7 +98,7 @@ exports.onExecutePostLogin = async (event, api) => {
       api.transaction.setMetadata(TX_LINKING_CHECKED, "true");
 
       if (!hasValidEntryPath(event)) {
-        console.log("No link candidates and no valid entry path — denying");
+        console.log("No link candidates and no valid entry path - denying");
         denyWithLogout(
           event,
           api,

@@ -1,5 +1,5 @@
 # Manual trigger to promote to qa, val, or prod.
-# Pipeline name in Azure DevOps: "CIC - Promote"
+
 trigger: none
 
 parameters:

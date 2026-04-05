@@ -1,13 +1,8 @@
-# Auth0 action module definitions.
-# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/action_module
-#
-# environments: Required list of envs where this module should exist.
-#               Every resource MUST have an explicit environments key.
-#               Example: environments: [dev, qa]
-#
-# testing: Optional block to route specific envs to next.js during development.
-#
-# IMPORTANT: Pin all dependency versions. Never use "latest".
+
+# Action Modules
+# Each module includes its name, publish status, target environments, code entry point, dependencies, and secrets configuration.
+# Pin the versions of your dependencies to ensure stability and security. Replace "PINME" with the actual version numbers you have verified.
+
 action_modules:
   entry-path-verification:
     name: "Entry Path Verification"
@@ -23,7 +18,7 @@ action_modules:
     environments: [dev, qa, val, prod]
     code: "main.js"
     dependencies:
-      auth0: "PINME"              # TODO: replace with your verified version (e.g. "4.16.0")
+      auth0: "5.5.0"
     secrets_config:
       - "MANAGEMENT_API_DOMAIN"
       - "MANAGEMENT_API_CLIENT_ID"
@@ -36,6 +31,6 @@ action_modules:
     environments: [dev, qa, val, prod]
     code: "main.js"
     dependencies:
-      joi: "PINME"                # TODO: replace with your verified version (e.g. "17.13.3")
-      libphonenumber-js: "PINME"  # TODO: replace with your verified version (e.g. "1.12.8")
+      joi: "18.1.2"
+      libphonenumber-js: "1.12.41"
     secrets_pipeline: []

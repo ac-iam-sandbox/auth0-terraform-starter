@@ -1,8 +1,31 @@
 {
+  "flows": {},
   "form": {
     "name": "Post Account Linking",
     "languages": {
-      "primary": "en"
+      "primary": "en",
+      "default": "en"
+    },
+    "translations": {
+      "ja": {
+        "ending": null,
+        "messages": {
+          "custom": {},
+          "errors": {}
+        },
+        "components": {
+          "rich_text_PJBF": {
+            "config": {
+              "content": "<h2>あなたのMARLÖアカウントは {{ fields.connection_type }} と連携されました。</h2><p>今後は {{ fields.connection_type }} アカウントでサインインできます。</p>"
+            }
+          },
+          "next_button_QAyw": {
+            "config": {
+              "text": "確認"
+            }
+          }
+        }
+      }
     },
     "nodes": [
       {
@@ -63,6 +86,5 @@
         "y": 0
       }
     }
-  },
-  "flows": {}
+  }
 }

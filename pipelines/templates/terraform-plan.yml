@@ -114,7 +114,7 @@ jobs:
       - ${{ if eq(parameters.publish_binary_plan, true) }}:
         - publish: $(Build.ArtifactStagingDirectory)/${{ parameters.environment }}.tfplan
           artifact: ${{ parameters.region }}-${{ parameters.environment }}-plan
-          displayName: "Publish plan artifact (sensitive — contains secrets)"
+          displayName: "Publish plan artifact (sensitive - contains secrets)"
 
       - publish: $(Build.ArtifactStagingDirectory)/plan-summary.txt
         artifact: ${{ parameters.region }}-${{ parameters.environment }}-plan-summary

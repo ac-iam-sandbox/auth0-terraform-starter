@@ -1,6 +1,5 @@
 # Posts a summary of dev and qa plans as a PR comment.
-# Val/prod plans are excluded from PR validation to limit credential exposure.
-# Requires "Contribute to pull requests" permission on the Build Service identity.
+
 parameters:
   - name: region
     type: string

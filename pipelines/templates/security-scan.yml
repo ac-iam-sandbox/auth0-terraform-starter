@@ -1,3 +1,6 @@
+# This pipeline template defines security scanning and validation jobs for Terraform code.
+# It includes Checkov for security scanning, tflint for linting, JavaScript syntax
+
 jobs:
   - job: checkov
     displayName: "Checkov security scan"

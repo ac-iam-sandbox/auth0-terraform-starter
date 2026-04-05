@@ -1,18 +1,10 @@
-# Auth0 action definitions.
-# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/action
-#
-# environments: Required list of envs where this action should exist.
-#               Every resource MUST have an explicit environments key.
-#
-# order: Required. Controls execution order within a trigger.
-#        Actions sharing the same trigger are sorted by this value.
-#        Order is per-trigger — order: 1 on pre-user-registration and
-#        order: 1 on post-login do not conflict.
-#
-# testing: Optional block to route specific envs to next.js.
+# Auth0 Actions
+# This file defines the Auth0 Actions to be deployed across different environments.
+# Each action is associated with a specific trigger (e.g., pre-user-registration, post-login) 
+# and includes details such as runtime, deployment settings, code location, dependencies, secrets configuration, and execution order.
 
 actions:
-  # ── Pre User Registration ─────────────────────────────────────────
+  # Pre User Registration Trigger
   enrich-signup-profile:
     name: "Enrich Signup Profile"
     trigger: "pre-user-registration"
@@ -30,7 +22,7 @@ actions:
       - module_key: "entry-path-verification"
       - module_key: "signup-validation"
 
-  # ── Post Login (order = execution sequence) ────────────────────────
+  # Post Login Trigger
   enforce-email-verification:
     name: "Enforce Email Verification"
     trigger: "post-login"

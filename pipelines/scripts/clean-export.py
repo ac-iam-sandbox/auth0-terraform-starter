@@ -4,7 +4,7 @@ Cleans an Auth0 form export for Terraform consumption.
 
 Strips metadata that Terraform does not use and that contains
 environment-specific values (like hardcoded vault connection IDs).
-Keeps only 'form' and 'flows' — the sections Terraform reads.
+Keeps only 'form' and 'flows' - the sections Terraform reads.
 
 Usage:
   python clean-export.py <exported_file.json>

@@ -13,7 +13,13 @@
           "custom": {},
           "errors": {}
         },
-        "components": {}
+        "components": {
+          "rich_text_9o64": {
+            "config": {
+              "content": "<p>{{fields.email}}</p><p></p><p>既存のMARLÖアカウントがこのメールアドレスに関連付けられています。お使いの {{ fields.connection_type }} アカウントをこのMARLÖアカウントに連携できます。</p>"
+            }
+          }
+        }
       }
     },
     "nodes": [

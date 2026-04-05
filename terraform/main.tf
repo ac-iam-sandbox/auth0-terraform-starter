@@ -1,4 +1,4 @@
-# Root module — composes child modules in dependency order.
+# Root module - composes child modules in dependency order.
 #
 # Environment config is loaded from manifests/environments/{env}.yaml.
 # Each module receives the full env_config and extracts its own section.

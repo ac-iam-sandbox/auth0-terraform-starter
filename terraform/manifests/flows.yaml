@@ -1,20 +1,7 @@
-# Auth0 vault connection, flow, and form definitions.
-# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/flow_vault_connection
-# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/flow
-# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/form
-#
-# environments: Required list of envs where a resource should exist.
-#               Every resource MUST have an explicit environments key.
-#
-# Flows: form-local flows use source_form + source_key to extract from
-#        the owning form's export. Shared flows use source_file.
-#        conn_refs map #CONN-N# placeholders to vault connection keys.
-#
-# Forms: code points to the exported JSON (main.json).
-#        flow_refs map #FLOW-N# placeholders to flow keys.
-#        Use testing block for dev/qa iteration (next.json).
-#        val and prod MUST always resolve to main.json.
+# Auth0 Forms, Flows, and Vault Configuration
 
+# Vault Connections
+# Each vault connection's setup_config lists the required config keys for that connection type.
 vault_connections:
   auth0-m2m:
     app_id: "AUTH0"
@@ -28,8 +15,7 @@ vault_connections:
     setup_secrets:
       client_secret: "VAULT_AUTH0_CLIENT_SECRET"
 
-# ── Flows ────────────────────────────────────────────────────────────
-# Form-local flows: extracted from the owning form's export JSON.
+# Flows
 # Conn refs replaced with Terraform-managed vault connection IDs.
 flows:
   # Email Verification flows
@@ -73,10 +59,8 @@ flows:
       - placeholder: "#CONN-1#"
         vault_key: "auth0-m2m"
 
-# ── Forms ────────────────────────────────────────────────────────────
-# Each form's code points to the exported dashboard JSON.
-# flow_refs map #FLOW-N# placeholders to flow keys defined above.
-# Forms without flows have no flow_refs.
+# Forms
+# Each form's flow_refs list the flows that are part of that form, with placeholders for where those flows should be inserted in the form's JSON.
 forms:
   email-verification:
     name: "Email Verification"

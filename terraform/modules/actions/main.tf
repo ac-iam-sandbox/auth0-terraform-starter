@@ -84,7 +84,7 @@ resource "auth0_action" "this" {
   }
 }
 
-# Trigger bindings — sorted by 'order' field from YAML manifest.
+# Trigger bindings - sorted by 'order' field from YAML manifest.
 # Actions sharing a trigger are bound in ascending order value.
 locals {
   triggers = distinct([for k, v in local.active : v.trigger])

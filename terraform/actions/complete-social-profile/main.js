@@ -258,7 +258,7 @@ exports.onExecutePostLogin = async (event, api) => {
       api.transaction.setMetadata(TX_LINKING_CHECKED, "true");
 
       if (!entryPathIsValid) {
-        console.log("No link candidates and invalid entry path — denying");
+        console.log("No link candidates and invalid entry path - denying");
         denyWithLogout(
           event,
           api,
