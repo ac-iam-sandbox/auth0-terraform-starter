@@ -6,7 +6,7 @@ Manages Auth0 CIC (Customer Identity Cloud) tenant configuration across four env
 
 ## Architecture overview
 
-This repo uses a **single Terraform codebase applied to each environment via partial backend configuration**. One set of `.tf` files serves all four environments. Environment differentiation comes from YAML manifest filters and per-environment config files - not from separate directories, branches, or workspaces.
+This repo uses a **single Terraform codebase applied to each environment via partial backend configuration**. One set of `.tf` files serves all four environments. Environment differentiation comes from YAML manifest filters and per-environment config files — not from separate directories, branches, or workspaces.
 
 ```
 One codebase → parameterized by environment → applied via pipeline
@@ -21,7 +21,7 @@ One codebase → parameterized by environment → applied via pipeline
 
 | Approach | Pros | Cons | Our choice |
 |---|---|---|---|
-| **Single codebase + backend-config** | Zero code duplication, consistent providers across envs, one PR changes all envs | Requires discipline around env filters | **Yes - this is our approach** |
+| **Single codebase + backend-config** | Zero code duplication, consistent providers across envs, one PR changes all envs | Requires discipline around env filters | **Yes — this is our approach** |
 | Directory per environment | Full isolation, easy to reason about | Duplicated `.tf` files, drift between envs, maintenance burden | No |
 | Terraform CLI workspaces | Built-in, no tooling needed | Shared backend credentials, invisible state, HashiCorp discourages for env separation | No |
 | Terragrunt | DRY, cross-config orchestration, per-env version pinning | Extra tooling, learning curve, not justified at current scale | No (revisit when splitting state) |
@@ -30,17 +30,17 @@ One codebase → parameterized by environment → applied via pipeline
 
 **Trunk-based development on a single `master` branch.** All tested code lives on master. Feature branches are short-lived and merge through PRs. There are no long-lived environment branches (no `dev`, `qa`, `prod` branches).
 
-**Why not GitFlow or environment branches?** Terraform state is the third dimension that Git branches cannot represent. Merging a `dev` branch into `prod` doesn't merge the state - it creates phantom infrastructure or destroys existing resources. Trunk-based development with environment filters in YAML manifests is safer because the routing logic is explicit, reviewable, and enforced by the pipeline.
+**Why not GitFlow or environment branches?** Terraform state is the third dimension that Git branches cannot represent. Merging a `dev` branch into `prod` doesn't merge the state — it creates phantom infrastructure or destroys existing resources. Trunk-based development with environment filters in YAML manifests is safer because the routing logic is explicit, reviewable, and enforced by the pipeline.
 
 **How environment isolation works without branches:**
 
 Developer A is testing a new action in dev. Developer B needs to push an urgent fix to prod. Both work on the same master branch. Isolation comes from three YAML mechanisms:
 
-1. **`environments` filter** - Developer A's new action has `environments: [dev]`. When Developer B promotes to prod, Terraform evaluates the manifest, sees the action isn't targeted at prod, and skips it. Developer A's work never reaches prod.
+1. **`environments` filter** — Developer A's new action has `environments: [dev]`. When Developer B promotes to prod, Terraform evaluates the manifest, sees the action isn't targeted at prod, and skips it. Developer A's work never reaches prod.
 
-2. **`testing` block** - For existing resources that need code iteration, `main.js` is production-stable and `next.js` is the testing version. Dev and qa can run `next.js` while val and prod always run `main.js`. This is enforced by both the pipeline validation and Terraform preconditions.
+2. **`testing` block** — For existing resources that need code iteration, `main.js` is production-stable and `next.js` is the testing version. Dev and qa can run `next.js` while val and prod always run `main.js`. This is enforced by both the pipeline validation and Terraform preconditions.
 
-3. **Manifest as routing table** - Each resource section is independent. Developer A's manifest changes don't affect Developer B's resources, even in the same PR. The pipeline evaluates every resource's filters per environment.
+3. **Manifest as routing table** — Each resource section is independent. Developer A's manifest changes don't affect Developer B's resources, even in the same PR. The pipeline evaluates every resource's filters per environment.
 
 **The promotion model:**
 
@@ -59,8 +59,8 @@ Code iteration on existing resource:
 ```
 
 **Critical safety rule:** `testing.envs` may NEVER contain `val` or `prod`. This is enforced by:
-- `validate-manifests.py` - hard-fails if testing.envs contains val or prod
-- Terraform lifecycle preconditions - blocks plan if val/prod would resolve a testing artifact
+- `validate-manifests.py` — hard-fails if testing.envs contains val or prod
+- Terraform lifecycle preconditions — blocks plan if val/prod would resolve a testing artifact
 
 The promotion event for val/prod is always overwriting `main.*` with the tested code, not expanding `testing.envs`.
 
@@ -72,20 +72,20 @@ The promotion event for val/prod is always overwriting `main.*` with the tested 
 4. **Nested env config mirrors manifest structure.** Environment files organized by resource type, keyed identically to resource manifests.
 5. **Every apply requires approval.** Plan runs automatically. Approver reviews plan artifact before apply.
 6. **Deployment and promotion are separate.** Merge to `master` plans+applies dev (after approval). Higher envs require the promote pipeline.
-7. **`environments` key is required on every resource.** Controls WHERE a resource exists. `testing` block controls WHICH CODE it runs. The validation script enforces this - omitting the key fails the pipeline.
+7. **`environments` key is required on every resource.** Controls WHERE a resource exists. `testing` block controls WHICH CODE it runs. The validation script enforces this — omitting the key fails the pipeline.
 8. **`prevent_destroy` on critical resources.** Clients, vault connections, actions, and action modules.
 9. **M2M client grants are NOT managed here.** Separate team uses outputted `client_id`.
 10. **Commit `.terraform.lock.hcl`.** Ensures plan and apply use identical provider versions.
 11. **Single pipeline run deploys everything.** Terraform dependency graph handles module -> action -> trigger ordering.
-12. **Explicit `order` field controls trigger execution sequence.** Actions sharing a trigger are sorted by their `order` value. Terraform maps are unordered - without this field, actions would bind in alphabetical key order.
+12. **Explicit `order` field controls trigger execution sequence.** Actions sharing a trigger are sorted by their `order` value. Terraform maps are unordered — without this field, actions would bind in alphabetical key order.
 
 ---
 
-## Two resource controls - when to use which
+## Two resource controls — when to use which
 
 Every resource type (clients, actions, action modules, vault connections, forms) supports both controls. They solve different problems and can be used independently or together.
 
-### `environments` filter - controls WHERE a resource exists
+### `environments` filter — controls WHERE a resource exists
 
 **Required.** Every resource must have an explicit `environments` list. The manifest validation script enforces this on every PR and deploy. Resources that belong in all environments use `environments: [dev, qa, val, prod]`.
 
@@ -110,7 +110,7 @@ Step 3: environments: [dev, qa, val]     → merge → promote to val
 Step 4: environments: [dev, qa, val, prod] → promote to prod (final state)
 ```
 
-### `testing` block - controls WHICH CODE a resource runs
+### `testing` block — controls WHICH CODE a resource runs
 
 The resource exists in all environments but some envs run different code. Use `main.js` (canonical) + `next.js` (testing).
 
@@ -136,12 +136,12 @@ Step 1: testing.envs: [dev]           -> merge -> dev runs next.js
 Step 2: testing.envs: [dev, qa]       -> merge -> promote to qa
 Step 3: overwrite main.js with next.js, delete next.js, remove testing block
 Step 4: PR -> merge -> promote to val -> promote to prod
-        (val/prod always run main.js - enforced by pipeline + Terraform)
+        (val/prod always run main.js — enforced by pipeline + Terraform)
 ```
 
 The promotion event is **overwriting main.js**, not expanding testing.envs. This ensures val and prod never run untested artifacts.
 
-### Using both together - new resource with code iteration
+### Using both together — new resource with code iteration
 
 ```yaml
 actions:
@@ -170,7 +170,7 @@ No blocking, no conflicts. The manifest is the routing table and each resource s
 
 For dev and qa: a developer submits a PR that changes the manifest (expanding `environments` or `testing.envs`). The PR IS the promotion decision.
 
-For val and prod: a developer submits a PR that overwrites `main.*` with the tested code and removes the `testing` block. Val and prod only ever read `main.*` - this is enforced by both the pipeline validation and Terraform preconditions.
+For val and prod: a developer submits a PR that overwrites `main.*` with the tested code and removes the `testing` block. Val and prod only ever read `main.*` — this is enforced by both the pipeline validation and Terraform preconditions.
 
 ```
 Developer decides "this is ready for val/prod"
@@ -201,10 +201,10 @@ Developer decides "this is ready for val/prod"
 ```
 auth0-infrastructure/
 ├── terraform/
-│   ├── main.tf                                     # Root module - composes child modules
+│   ├── main.tf                                     # Root module — composes child modules
 │   ├── variables.tf                                # environment + secrets_json
 │   ├── outputs.tf
-│   ├── providers.tf                                # Empty - AUTH0_* env vars
+│   ├── providers.tf                                # Empty — AUTH0_* env vars
 │   ├── versions.tf                                 # auth0/auth0 ~> 1.41 + S3 backend
 │   │
 │   ├── modules/
@@ -252,6 +252,7 @@ auth0-infrastructure/
     ├── deploy-dev.yml                              # Auto on merge to master
     ├── promote.yml                                 # Manual → qa | val | prod
     ├── pr-validation.yml                           # Auto on PR (plans dev + qa only)
+    ├── import-dev.yml                              # Manual one-time bootstrap import
     ├── scripts/
     │   ├── validate-manifests.py                   # Manifest validation + safety enforcement
     │   └── clean-export.py                         # Strips metadata from Auth0 form exports
@@ -358,6 +359,7 @@ The PR validation pipeline posts plan summaries as PR comments. This requires th
 | `CIC - Deploy Dev` | `pipelines/deploy-dev.yml` | Auto (merge to master) |
 | `CIC - Promote` | `pipelines/promote.yml` | Manual |
 | `CIC - PR Validation` | `pipelines/pr-validation.yml` | Auto (PR to master) |
+| `CIC - Import Dev` | `pipelines/import-dev.yml` | Manual (one-time bootstrap) |
 
 ### Pipeline stages
 
@@ -369,7 +371,7 @@ Terraform plan        → binary plan artifact (sensitive) + plan summary + rate
 Terraform apply       → apply saved plan (approval gated) + apply output artifact
 ```
 
-Binary plan artifacts contain secrets in raw form. They are published only for deploy/promote pipelines where the apply stage needs them. Treat as sensitive - limited retention, limited download access.
+Binary plan artifacts contain secrets in raw form. They are published only for deploy/promote pipelines where the apply stage needs them. Treat as sensitive — limited retention, limited download access.
 
 **PR Validation (dev + qa only):**
 ```
@@ -386,7 +388,7 @@ Val/prod are intentionally excluded from PR validation to limit credential expos
 
 ## Current resources
 
-### Clients (6) - all environments
+### Clients (6) — all environments
 
 | Key | Name | Type |
 |---|---|---|
@@ -397,13 +399,13 @@ Val/prod are intentionally excluded from PR validation to limit credential expos
 | `marlo` | Marlo | SPA |
 | `mulesoft` | MuleSoft Integration | M2M |
 
-### Action modules (3) - all environments
+### Action modules (3) — all environments
 
 | Key | Name | Config (env yaml) | Secrets (pipeline) |
 |---|---|---|---|
-| `entry-path-verification` | Entry Path Verification | - | - |
+| `entry-path-verification` | Entry Path Verification | — | — |
 | `account-linking` | Account Linking | `MANAGEMENT_API_DOMAIN`, `MANAGEMENT_API_CLIENT_ID` | `MANAGEMENT_API_CLIENT_SECRET` |
-| `signup-validation` | Signup Validation | - | - |
+| `signup-validation` | Signup Validation | — | — |
 
 ### Actions (8)
 
@@ -413,42 +415,42 @@ Val/prod are intentionally excluded from PR validation to limit credential expos
 |---|---|---|---|---|
 | 1 | `enrich-signup-profile` | Enrich Signup Profile | `API_BASE_URL` | `entry-path-verification`, `signup-validation` |
 
-**Post-login trigger** (dev only - promote after testing):
+**Post-login trigger** (dev only — promote after testing):
 
 | Order | Key | Name | Config | Modules |
 |---|---|---|---|---|
-| 1 | `enforce-email-verification` | Enforce Email Verification | `FORM_ID` | - |
+| 1 | `enforce-email-verification` | Enforce Email Verification | `FORM_ID` | — |
 | 2 | `complete-social-profile` | Complete Social Profile | `API_BASE_URL`, `PROFILE_FORM_ID`, `LINKING_FORM_ID` | `account-linking`, `entry-path-verification`, `signup-validation` |
 | 3 | `link-accounts` | Link Accounts | `LINKING_FORM_ID` | `account-linking` |
-| 4 | `post-account-linking` | Post Account Linking | `LINKING_SUCCESS_FORM_ID` | - |
-| 5 | `custom-claims` | Custom Claims | - | - |
-| 6 | `token-enrichment` | Token Enrichment | - | - |
-| 7 | `token-check` | Token Check | - | - |
+| 4 | `post-account-linking` | Post Account Linking | `LINKING_SUCCESS_FORM_ID` | — |
+| 5 | `custom-claims` | Custom Claims | — | — |
+| 6 | `token-enrichment` | Token Enrichment | — | — |
+| 7 | `token-check` | Token Check | — | — |
 
-### Vault connections (1) - all environments
+### Vault connections (1) — all environments
 
 | Key | Name | Config (env yaml) | Secrets (pipeline) |
 |---|---|---|---|
 | `auth0-m2m` | Auth0 M2M Connection | `domain`, `client_id` | `VAULT_AUTH0_CLIENT_SECRET` |
 
-### Flows (5) - dev only
+### Flows (5) — dev only
 
 | Key | Name | Source form | Conn refs |
 |---|---|---|---|
-| `ev-send-email-otp` | Verify Email (OTP and Send Email) | email-verification #FLOW-1# | - |
+| `ev-send-email-otp` | Verify Email (OTP and Send Email) | email-verification #FLOW-1# | — |
 | `ev-verify-otp-update` | Verify Email (Verify OTP and Update) | email-verification #FLOW-2# | #CONN-1# → auth0-m2m |
 | `pp-update-user` | Progressive Profiling (Update User) | progressive-profiling #FLOW-1# | #CONN-1# → auth0-m2m |
-| `pp-send-email-otp` | Progressive Profiling (OTP and Send Email) | progressive-profiling #FLOW-2# | - |
+| `pp-send-email-otp` | Progressive Profiling (OTP and Send Email) | progressive-profiling #FLOW-2# | — |
 | `pp-verify-otp-update` | Progressive Profiling (Verify OTP and Update) | progressive-profiling #FLOW-3# | #CONN-1# → auth0-m2m |
 
-### Forms (4) - dev only
+### Forms (4) — dev only
 
 | Key | Name | Flows | Translations |
 |---|---|---|---|
 | `email-verification` | Email Verification | 2 (#FLOW-1#, #FLOW-2#) | ja |
 | `progressive-profiling` | Progressive Profiling | 3 (#FLOW-1#, #FLOW-2#, #FLOW-3#) | ja |
 | `account-linking` | Account Linking | 0 | ja |
-| `post-account-linking` | Post Account Linking | 0 | - |
+| `post-account-linking` | Post Account Linking | 0 | — |
 
 ---
 
@@ -467,7 +469,7 @@ Val/prod are intentionally excluded from PR validation to limit credential expos
 
 ## Bootstrap guide (first deployment only)
 
-Targeted applies are a **one-time bootstrap exception**. Never use `-target` in normal operations - it bypasses full-graph planning and can mask dependency issues. After initial bootstrap, all deployments should use the full `terraform apply` via the pipeline.
+Targeted applies are a **one-time bootstrap exception**. Never use `-target` in normal operations — it bypasses full-graph planning and can mask dependency issues. After initial bootstrap, all deployments should use the full `terraform apply` via the pipeline.
 
 To avoid partial apply issues, use targeted applies on first deploy:
 
@@ -479,12 +481,7 @@ terraform apply -var="environment=dev" -target=module.actions
 terraform apply -var="environment=dev"
 ```
 
-**If partial apply happens** (resource created in Auth0, state not saved):
-```bash
-terraform import -var="environment=dev" \
-  'module.actions.auth0_action.this["enrich-signup-profile"]' \
-  "ACTION_ID_FROM_DASHBOARD"
-```
+**If partial apply happens** (resource created in Auth0, state not saved): use the `CIC - Import Dev` pipeline to import the resource by its Auth0 ID, then re-run the deploy.
 
 ---
 
@@ -492,7 +489,7 @@ terraform import -var="environment=dev" \
 
 ### New client
 1. Add to `manifests/clients.yaml` with `environments: [dev]` (start in dev only)
-2. Add env config to `manifests/environments/dev.yaml` under `clients.{key}` (if SPA/web - M2M clients with no callbacks don't need env config)
+2. Add env config to `manifests/environments/dev.yaml` under `clients.{key}` (if SPA/web — M2M clients with no callbacks don't need env config)
 3. PR → validate (manifest validation + plan for all envs confirms it only appears in dev) → merge → approve → apply
 
 ### New action
@@ -585,40 +582,13 @@ For each: click environment → three-dot menu → Approvals and checks → add 
 
 Project Settings → Repositories → Security → Build Service identity → set "Contribute to pull requests" to **Allow**.
 
-### 6. Import existing resources
+### 6. Import existing resources (one-time)
 
-Resources that already exist in the Auth0 dev tenant must be imported into Terraform state before the first apply. Get resource IDs from the Auth0 dashboard.
+Use the `CIC - Import Dev` pipeline (`pipelines/import-dev.yml`) to import existing Auth0 resources into Terraform state. This is a manual pipeline with parameters for every resource ID — set each ID from the Auth0 dashboard, leave as `SKIP` for resources that don't exist yet.
 
-```bash
-cd terraform
-terraform init -backend-config="bucket=$TF_STATE_BUCKET" -backend-config=backends/dev.s3.tfbackend
+Create the pipeline in Azure DevOps: Pipelines → New Pipeline → select `pipelines/import-dev.yml`.
 
-# Import existing forms (get IDs from Dashboard → Forms → click form → ID in URL)
-terraform import -var="environment=dev" 'module.forms.auth0_form.this["email-verification"]' "ap_XXXXX"
-terraform import -var="environment=dev" 'module.forms.auth0_form.this["progressive-profiling"]' "ap_XXXXX"
-terraform import -var="environment=dev" 'module.forms.auth0_form.this["account-linking"]' "ap_XXXXX"
-terraform import -var="environment=dev" 'module.forms.auth0_form.this["post-account-linking"]' "ap_XXXXX"
-
-# Import existing flows (get IDs from Dashboard → Forms → Flows tab → click flow → ID in URL)
-terraform import -var="environment=dev" 'module.flows.auth0_flow.this["ev-send-email-otp"]' "flow_XXXXX"
-terraform import -var="environment=dev" 'module.flows.auth0_flow.this["ev-verify-otp-update"]' "flow_XXXXX"
-terraform import -var="environment=dev" 'module.flows.auth0_flow.this["pp-update-user"]' "flow_XXXXX"
-terraform import -var="environment=dev" 'module.flows.auth0_flow.this["pp-send-email-otp"]' "flow_XXXXX"
-terraform import -var="environment=dev" 'module.flows.auth0_flow.this["pp-verify-otp-update"]' "flow_XXXXX"
-
-# Import existing vault connection (if already created)
-terraform import -var="environment=dev" 'module.vault_connections.auth0_flow_vault_connection.this["auth0-m2m"]' "ac_XXXXX"
-```
-
-### 7. Validate with plan
-
-After all imports and placeholder replacements:
-
-```bash
-terraform plan -var="environment=dev"
-```
-
-Expected: minimal drift from imported resources (mostly formatting differences in JSON). No unexpected creates or destroys. Review any changes carefully before applying.
+After the import completes, the pipeline runs a verification plan showing any drift between Auth0 and your manifests. Review the plan output before running deploy-dev.
 
 ## Action runtime policy
 
@@ -633,14 +603,14 @@ Auth0 Actions execute during the login transaction. Hard limits apply to all act
 - Only public npm packages supported (no private registries, no native binaries)
 
 **Management API constraints:**
-- Management API calls during login are **rate limited** - minimize API calls in post-login actions
-- `searchUsersByEmail` and `executeLinkPlan` (account-linking module) make Management API calls - use aggressive timeouts
+- Management API calls during login are **rate limited** — minimize API calls in post-login actions
+- `searchUsersByEmail` and `executeLinkPlan` (account-linking module) make Management API calls — use aggressive timeouts
 - `setPrimaryUser` has transaction constraints when changing the primary identity
 
 **Development standards:**
 - All outbound HTTP calls must have explicit timeouts (5s recommended)
 - All modules must be compatible with the `node22` runtime
-- Pin all npm dependency versions - never use `latest`
+- Pin all npm dependency versions — never use `latest`
 - Never log tokens, secrets, user IDs, or upstream identity details
 - Retry logic must respect the 20-second transaction budget
 
@@ -680,7 +650,7 @@ Resources with `prevent_destroy = true` (clients, actions, action modules, vault
 3. In the same PR, remove the resource from the manifest YAML
 4. PR requires senior engineer approval (this is a destructive operation)
 5. After merge, run `terraform plan` to confirm the destroy
-6. Apply with approval - the resource is deleted from Auth0
+6. Apply with approval — the resource is deleted from Auth0
 7. Follow-up PR: restore `prevent_destroy` in the module (it was temporarily removed)
 
 **Alternative (manual removal):**
@@ -698,15 +668,15 @@ Terraform state files and saved plan artifacts contain **sensitive values in pla
 **S3 state bucket requirements:**
 - Server-side encryption enabled (SSE-S3 at minimum, SSE-KMS preferred)
 - Bucket versioning enabled (allows state recovery)
-- Strict IAM policies - limit read access to CI/CD service principal and break-glass roles
+- Strict IAM policies — limit read access to CI/CD service principal and break-glass roles
 - No public access
 - CloudTrail logging for audit trail
 
 **Plan artifact handling:**
-- Saved `.tfplan` files contain sensitive values - treat as secrets
+- Saved `.tfplan` files contain sensitive values — treat as secrets
 - Limit access to plan artifacts in Azure DevOps (do not publish to broadly accessible artifact feeds)
 - Plan summary text files (human-readable output) may also contain sensitive values in resource arguments
-- Never enable debug logging (`TF_LOG`) in production pipelines - it dumps all values including secrets
+- Never enable debug logging (`TF_LOG`) in production pipelines — it dumps all values including secrets
 
 **Current risk acceptance:**
 - Secrets enter Terraform via `TF_VAR_secrets_json` environment variable and per-resource `TF_VAR_*` variables
@@ -722,8 +692,8 @@ Forms and flows are managed as **exported dashboard JSON snapshots**. The Auth0 
 
 **Architecture:**
 - Each form's exported JSON is stored in `manifests/forms/{form-name}/main.json`
-- Exports are **cleaned before committing** - only `form` and `flows` sections are kept
-- Auth0's export includes a `connections` section with hardcoded vault connection IDs and a `version` field - these are environment-specific metadata that Terraform does not use and must be stripped to avoid confusion
+- Exports are **cleaned before committing** — only `form` and `flows` sections are kept
+- Auth0's export includes a `connections` section with hardcoded vault connection IDs and a `version` field — these are environment-specific metadata that Terraform does not use and must be stripped to avoid confusion
 - Terraform extracts flows from the export, replaces `#CONN-N#` placeholders with vault connection IDs, and creates `auth0_flow` resources
 - Terraform extracts the form definition, replaces `#FLOW-N#` placeholders with flow IDs, and creates the `auth0_form` resource
 
@@ -738,7 +708,7 @@ Forms and flows are managed as **exported dashboard JSON snapshots**. The Auth0 
 4. Inspect the cleaned file for placeholder tokens (`#FLOW-N#`, `#CONN-N#`)
 5. Add entries to `flows.yaml`: one `flows` entry per `#FLOW-N#` token, one `forms` entry with `flow_refs` mapping each `#FLOW-N#` to its flow key
 6. PR → merge → deploy
-7. The pipeline validates that exports are clean - unclean exports fail the manifest validation
+7. The pipeline validates that exports are clean — unclean exports fail the manifest validation
 
 **Updating a form:**
 1. Modify in the Auth0 dashboard
@@ -752,12 +722,12 @@ Forms and flows are managed as **exported dashboard JSON snapshots**. The Auth0 
 
 | Section | Removed? | Reason |
 |---|---|---|
-| `form` | Kept | Form definition - consumed by Terraform forms module |
-| `flows` | Kept | Flow definitions with `#CONN-N#` placeholders - consumed by Terraform flows module |
-| `connections` | **Removed** | Contains hardcoded vault connection IDs from the exporting tenant - Terraform injects real IDs via the manifest's `conn_refs` |
-| `version` | **Removed** | Auth0 export format version - not used by Terraform |
+| `form` | Kept | Form definition — consumed by Terraform forms module |
+| `flows` | Kept | Flow definitions with `#CONN-N#` placeholders — consumed by Terraform flows module |
+| `connections` | **Removed** | Contains hardcoded vault connection IDs from the exporting tenant — Terraform injects real IDs via the manifest's `conn_refs` |
+| `version` | **Removed** | Auth0 export format version — not used by Terraform |
 
-**Translations** are inside the `form` section of the export and are kept. A translation change requires re-exporting from the dashboard (or carefully editing the `translations` section in the JSON). Translations go through the same promotion workflow as structural changes - they do not reach production without approval.
+**Translations** are inside the `form` section of the export and are kept. A translation change requires re-exporting from the dashboard (or carefully editing the `translations` section in the JSON). Translations go through the same promotion workflow as structural changes — they do not reach production without approval.
 
 ---
 

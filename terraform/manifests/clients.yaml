@@ -1,7 +1,5 @@
 # Auth0 Client Applications
 # Each client application is defined with its name, description, type, environments, OIDC conformance, grant types, JWT algorithm, and refresh token settings (if applicable).
-# M2M applications will be defined here but client grants will be configured by the platfrom ops team.
-
 clients:
   auth0-actions:
     name: "Auth0 Actions Service"
@@ -14,7 +12,7 @@ clients:
 
   auth0-vault:
     name: "Auth0 Vault Service"
-    description: "M2M app for vault connections - email provider config, user password and profile updates"
+    description: "M2M app for vault connections — email provider config, user password and profile updates"
     app_type: "non_interactive"
     environments: [dev, qa, val, prod]
     oidc_conformant: true

@@ -1,11 +1,5 @@
-# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/client
-#
-# env_config is the "clients" section from environments/{env}.yaml.
-# Each key matches a client key in clients.yaml.
-# If a client has an "environments" list and the current env isn't in it, skip it.
-
 locals {
-  # Filter clients by environments list. No list = all environments.
+  # Filter clients by environments list.
   active_clients = {
     for k, v in var.definitions : k => v
     if lookup(v, "environments", null) == null || contains(v.environments, var.environment)
@@ -21,13 +15,18 @@ resource "auth0_client" "this" {
   oidc_conformant = lookup(each.value, "oidc_conformant", true)
   is_first_party  = lookup(each.value, "is_first_party", true)
 
-  # Env-specific values from environments/{env}.yaml → clients.{key}
-  # M2M clients without env config get empty lists.
+  # ── Env-specific URL properties (from environments/{env}.yaml → clients.{key}) ──
   callbacks           = try(var.env_config[each.key].callbacks, [])
   allowed_logout_urls = try(var.env_config[each.key].logout_urls, [])
   web_origins         = try(var.env_config[each.key].web_origins, null)
+  allowed_origins     = try(var.env_config[each.key].allowed_origins, null)
+  initiate_login_uri  = try(var.env_config[each.key].initiate_login_uri, null)
 
-  grant_types = lookup(each.value, "grant_types", [])
+  # ── Static properties (from clients.yaml — same across all envs) ──
+  grant_types          = lookup(each.value, "grant_types", [])
+  logo_uri             = lookup(each.value, "logo_uri", null)
+  cross_origin_auth    = lookup(each.value, "cross_origin_auth", null)
+  custom_login_page_on = lookup(each.value, "custom_login_page_on", null)
 
   jwt_configuration {
     alg = lookup(each.value, "jwt_alg", "RS256")
