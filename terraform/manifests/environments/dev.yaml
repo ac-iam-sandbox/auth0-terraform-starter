@@ -1,10 +1,13 @@
 # Dev environment configuration.
+# Nested by resource type — mirrors manifest structure.
 
 tenant:
   auth0_domain: "na-dev-axon-cic.us.auth0.com"
   region: "na"
 
 # Client env-specific values keyed by client manifest key.
+# Only clients that need env-specific values appear here.
+# M2M clients with no callbacks/URLs don't need entries.
 clients:
   marlo:
     callbacks:   ["https://dev.marlo.example.com/callback"]

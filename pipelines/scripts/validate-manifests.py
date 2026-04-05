@@ -6,12 +6,16 @@ Checks:
   1. Every resource has an explicit 'environments' key (hard fail)
   2. Every value in 'environments' is a valid environment name
   3. No empty 'environments' lists
-  4. secrets_config keys resolve to entries in applicable environment files
-  5. setup_config keys (vault connections) resolve to entries in env files
+  4. testing.envs must NEVER contain val or prod (hard fail)
+  5. secrets_config keys resolve to entries in applicable environment files
+  6. setup_config keys (vault connections) resolve to entries in env files
+  7. Action module_key references exist in action_modules manifest
+  8. Flow source_form references exist in forms manifest
+  9. Flow vault_key references exist in vault_connections manifest
+  10. Form flow_key references exist in flows manifest
 
 Usage:
   python validate-manifests.py <manifests_dir>
-  python validate-manifests.py terraform/manifests
 
 Exit codes:
   0 = all validations passed
@@ -25,10 +29,19 @@ import yaml
 
 
 VALID_ENVS = {"dev", "qa", "val", "prod"}
+PROTECTED_ENVS = {"val", "prod"}
 
-# Maps manifest filename → dict of { yaml_section_key: env_config_section_name }
-# env_config_section_name is the key used in environments/{env}.yaml
-# None means no env config is expected for that section.
+# Dependency versions that must never reach the pipeline.
+BANNED_VERSIONS = {"latest", "PINME", "*", ""}
+
+# Auth0 Actions do not support native npm modules.
+# These packages require native compilation and will fail at deploy/runtime.
+NATIVE_MODULE_DENYLIST = {
+    "bcrypt", "sharp", "canvas", "node-gyp", "leveldown", "sqlite3",
+    "node-sass", "fsevents", "grpc", "cpu-features", "dtrace-provider",
+    "microtime", "bufferutil", "utf-8-validate", "heapdump",
+}
+
 MANIFEST_MAP = {
     "clients.yaml": {"clients": "clients"},
     "actions.yaml": {"actions": "actions"},
@@ -42,7 +55,6 @@ MANIFEST_MAP = {
 
 
 def load_yaml(path):
-    """Load a YAML file and return its contents, or empty dict on failure."""
     try:
         with open(path, "r") as f:
             return yaml.safe_load(f) or {}
@@ -52,9 +64,8 @@ def load_yaml(path):
 
 
 def validate_environments_key(resource_key, resource_def, manifest_file, section):
-    """Check that the resource has a valid 'environments' key."""
     errors = []
-    location = f"{manifest_file} → {section}.{resource_key}"
+    location = f"{manifest_file} -> {section}.{resource_key}"
 
     if "environments" not in resource_def:
         errors.append(
@@ -80,17 +91,74 @@ def validate_environments_key(resource_key, resource_def, manifest_file, section
     return errors
 
 
-def validate_config_crossref(resource_key, resource_def, env_config_section, env_files, manifest_file, section):
-    """Cross-reference secrets_config and setup_config against environment files."""
+def validate_testing_block(resource_key, resource_def, manifest_file, section):
+    """Ban testing.envs from containing val or prod."""
     errors = []
-    location = f"{manifest_file} → {section}.{resource_key}"
+    location = f"{manifest_file} -> {section}.{resource_key}"
+
+    testing = resource_def.get("testing")
+    if not testing:
+        return errors
+
+    if not isinstance(testing, dict):
+        errors.append(f"{location}: 'testing' must be a mapping")
+        return errors
+
+    if "file" not in testing:
+        errors.append(f"{location}: testing block missing 'file' key")
+
+    test_envs = testing.get("envs", [])
+    if not isinstance(test_envs, list):
+        errors.append(f"{location}: testing.envs must be a list")
+        return errors
+
+    for env in test_envs:
+        if env in PROTECTED_ENVS:
+            errors.append(
+                f"{location}: testing.envs contains '{env}' which is FORBIDDEN. "
+                f"val and prod must always resolve main.* artifacts. "
+                f"Promote by overwriting main.* with tested code and removing the testing block."
+            )
+
+    return errors
+
+
+def validate_dependencies(resource_key, resource_def, manifest_file, section):
+    """Check that dependencies are pinned and not native modules."""
+    errors = []
+    location = f"{manifest_file} -> {section}.{resource_key}"
+
+    deps = resource_def.get("dependencies", {})
+    if not isinstance(deps, dict):
+        return errors
+
+    for pkg_name, pkg_version in deps.items():
+        version_str = str(pkg_version).strip()
+
+        if version_str in BANNED_VERSIONS:
+            errors.append(
+                f"{location}: dependency '{pkg_name}' has banned version '{version_str}'. "
+                f"Pin to an exact version (e.g., '4.16.0')."
+            )
+
+        if pkg_name.lower() in NATIVE_MODULE_DENYLIST:
+            errors.append(
+                f"{location}: dependency '{pkg_name}' is a native module and is not supported "
+                f"by Auth0 Actions. Auth0 only supports public npm packages without native binaries."
+            )
+
+    return errors
+
+
+def validate_config_crossref(resource_key, resource_def, env_config_section, env_files, manifest_file, section):
+    errors = []
+    location = f"{manifest_file} -> {section}.{resource_key}"
 
     if env_config_section is None:
         return errors
 
     target_envs = resource_def.get("environments", [])
 
-    # Check secrets_config keys exist in each applicable environment file
     for config_key in resource_def.get("secrets_config", []):
         for env in target_envs:
             if env not in env_files:
@@ -102,10 +170,9 @@ def validate_config_crossref(resource_key, resource_def, env_config_section, env
             if not resource_config or config_key not in resource_config:
                 errors.append(
                     f"{location}: secrets_config key '{config_key}' is missing in "
-                    f"environments/{env}.yaml → {env_config_section}.{resource_key}.{config_key}"
+                    f"environments/{env}.yaml -> {env_config_section}.{resource_key}.{config_key}"
                 )
 
-    # Check setup_config keys (vault connections use this pattern)
     for config_key in resource_def.get("setup_config", []):
         for env in target_envs:
             if env not in env_files:
@@ -117,24 +184,126 @@ def validate_config_crossref(resource_key, resource_def, env_config_section, env
             if not resource_config or config_key not in resource_config:
                 errors.append(
                     f"{location}: setup_config key '{config_key}' is missing in "
-                    f"environments/{env}.yaml → {env_config_section}.{resource_key}.{config_key}"
+                    f"environments/{env}.yaml -> {env_config_section}.{resource_key}.{config_key}"
                 )
 
     return errors
 
 
 def validate_secrets_pipeline(resource_key, resource_def, manifest_file, section):
-    """Warn about secrets_pipeline entries (best-effort check)."""
+    """Warn about secrets_pipeline entries. This is an intentionally deferred hard-check.
+    Full enforcement requires parsing pipeline YAML which is brittle.
+    A missing secret will cause terraform plan to fail at runtime, but that is a
+    slower feedback loop than catching it here. This gap should be closed by
+    moving secret declarations to a central machine-readable mapping."""
     warnings = []
-    location = f"{manifest_file} → {section}.{resource_key}"
+    location = f"{manifest_file} -> {section}.{resource_key}"
 
     for secret_name in resource_def.get("secrets_pipeline", []):
         warnings.append(
-            f"{location}: secrets_pipeline key '{secret_name}' — "
-            f"verify this exists in TF_VAR_secrets_json in terraform-plan.yml and terraform-apply.yml"
+            f"{location}: DEFERRED CHECK -- secrets_pipeline key '{secret_name}' "
+            f"must exist in TF_VAR_secrets_json in BOTH terraform-plan.yml AND terraform-apply.yml, "
+            f"and as a masked variable in every applicable Azure DevOps variable group. "
+            f"This is NOT machine-validated yet. Verify manually during PR review."
         )
 
     return warnings
+
+
+def validate_action_module_refs(actions, action_modules):
+    """Check that every module_key in actions references an existing action_module."""
+    errors = []
+    module_keys = set(action_modules.keys()) if action_modules else set()
+
+    for action_key, action_def in (actions or {}).items():
+        if not isinstance(action_def, dict):
+            continue
+        for mod_ref in action_def.get("modules", []):
+            if isinstance(mod_ref, dict) and "module_key" in mod_ref:
+                mk = mod_ref["module_key"]
+                if mk not in module_keys:
+                    errors.append(
+                        f"actions.yaml -> actions.{action_key}: module_key '{mk}' "
+                        f"does not exist in action_modules.yaml"
+                    )
+    return errors
+
+
+def validate_flow_refs(flows, vault_connections, forms):
+    """Cross-reference flow definitions against vault connections and forms."""
+    errors = []
+    vault_keys = set(vault_connections.keys()) if vault_connections else set()
+    form_keys = set(forms.keys()) if forms else set()
+
+    for flow_key, flow_def in (flows or {}).items():
+        if not isinstance(flow_def, dict):
+            continue
+        location = f"flows.yaml -> flows.{flow_key}"
+
+        # Check source_form exists
+        source_form = flow_def.get("source_form")
+        if source_form and source_form not in form_keys:
+            errors.append(f"{location}: source_form '{source_form}' does not exist in forms manifest")
+
+        # Check conn_refs vault_key exists
+        for ref in flow_def.get("conn_refs", []):
+            if isinstance(ref, dict) and "vault_key" in ref:
+                vk = ref["vault_key"]
+                if vk not in vault_keys:
+                    errors.append(f"{location}: conn_refs vault_key '{vk}' does not exist in vault_connections")
+
+    return errors
+
+
+def validate_form_refs(forms, flows):
+    """Cross-reference form definitions against flows."""
+    errors = []
+    flow_keys = set(flows.keys()) if flows else set()
+
+    for form_key, form_def in (forms or {}).items():
+        if not isinstance(form_def, dict):
+            continue
+        location = f"flows.yaml -> forms.{form_key}"
+
+        # Check flow_refs flow_key exists
+        for ref in form_def.get("flow_refs", []):
+            if isinstance(ref, dict) and "flow_key" in ref:
+                fk = ref["flow_key"]
+                if fk not in flow_keys:
+                    errors.append(f"{location}: flow_refs flow_key '{fk}' does not exist in flows manifest")
+
+        # Check form export file exists
+        code = form_def.get("code", "main.json")
+        form_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                  "terraform", "manifests", "forms", form_key, code)
+        # Use relative check from manifests_dir (passed as arg)
+    return errors
+
+
+def validate_form_files(forms, manifests_dir):
+    """Check that form export JSON files exist on disk."""
+    errors = []
+    for form_key, form_def in (forms or {}).items():
+        if not isinstance(form_def, dict):
+            continue
+        code = form_def.get("code", "main.json")
+        form_path = os.path.join(manifests_dir, "forms", form_key, code)
+        if not os.path.exists(form_path):
+            errors.append(
+                f"flows.yaml -> forms.{form_key}: export file not found: "
+                f"forms/{form_key}/{code}"
+            )
+
+        # Check testing file exists if testing block present
+        testing = form_def.get("testing")
+        if testing and isinstance(testing, dict) and "file" in testing:
+            test_path = os.path.join(manifests_dir, "forms", form_key, testing["file"])
+            if not os.path.exists(test_path):
+                errors.append(
+                    f"flows.yaml -> forms.{form_key}: testing file not found: "
+                    f"forms/{form_key}/{testing['file']}"
+                )
+    return errors
 
 
 def main():
@@ -168,6 +337,17 @@ def main():
     all_errors = []
     all_warnings = []
 
+    # Load all manifests for cross-referencing
+    actions_data = load_yaml(os.path.join(manifests_dir, "actions.yaml")) or {}
+    action_modules_data = load_yaml(os.path.join(manifests_dir, "action_modules.yaml")) or {}
+    flows_data = load_yaml(os.path.join(manifests_dir, "flows.yaml")) or {}
+
+    actions = actions_data.get("actions", {})
+    action_modules = action_modules_data.get("action_modules", {})
+    vault_connections = flows_data.get("vault_connections", {})
+    flows = flows_data.get("flows", {})
+    forms = flows_data.get("forms", {})
+
     # Validate each manifest
     for manifest_file, sections in MANIFEST_MAP.items():
         manifest_path = os.path.join(manifests_dir, manifest_file)
@@ -187,7 +367,7 @@ def main():
             for resource_key, resource_def in resources.items():
                 if not isinstance(resource_def, dict):
                     all_errors.append(
-                        f"{manifest_file} → {section_key}.{resource_key}: "
+                        f"{manifest_file} -> {section_key}.{resource_key}: "
                         f"resource definition must be a mapping, got {type(resource_def).__name__}"
                     )
                     continue
@@ -197,7 +377,12 @@ def main():
                     validate_environments_key(resource_key, resource_def, manifest_file, section_key)
                 )
 
-                # Check 2: config cross-references
+                # Check 2: testing block safety
+                all_errors.extend(
+                    validate_testing_block(resource_key, resource_def, manifest_file, section_key)
+                )
+
+                # Check 3: config cross-references
                 all_errors.extend(
                     validate_config_crossref(
                         resource_key, resource_def, env_config_section,
@@ -205,10 +390,31 @@ def main():
                     )
                 )
 
-                # Check 3: secrets_pipeline warnings
+                # Check 4: secrets_pipeline warnings
                 all_warnings.extend(
                     validate_secrets_pipeline(resource_key, resource_def, manifest_file, section_key)
                 )
+
+                # Check 5: dependency version pinning and native module ban
+                all_errors.extend(
+                    validate_dependencies(resource_key, resource_def, manifest_file, section_key)
+                )
+
+    # Cross-reference checks
+    all_errors.extend(validate_action_module_refs(actions, action_modules))
+    all_errors.extend(validate_flow_refs(flows, vault_connections, forms))
+    all_errors.extend(validate_form_refs(forms, flows))
+    all_errors.extend(validate_form_files(forms, manifests_dir))
+
+    # Count total resources
+    total = sum(
+        len(res) if isinstance(res, dict) else 0
+        for manifest_file in MANIFEST_MAP
+        for section_key in MANIFEST_MAP[manifest_file]
+        for manifest_data in [load_yaml(os.path.join(manifests_dir, manifest_file))]
+        if manifest_data
+        for res in [manifest_data.get(section_key, {})]
+    )
 
     # Print results
     if all_warnings:
@@ -228,8 +434,7 @@ def main():
         sys.exit(1)
 
     print(f"\nManifest validation passed. "
-          f"Checked {sum(len(manifest_data.get(sk, {}) or {}) for _, sections in MANIFEST_MAP.items() for sk in sections for manifest_data in [load_yaml(os.path.join(manifests_dir, _))])} resources "
-          f"across {len(VALID_ENVS)} environments.")
+          f"Checked {total} resources across {len(VALID_ENVS)} environments.")
     sys.exit(0)
 
 

@@ -1,3 +1,3 @@
 output "form_map" {
-  value = {}
+  value = { for k, v in auth0_form.this : k => v.id }
 }

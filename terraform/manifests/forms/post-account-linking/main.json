@@ -1,0 +1,70 @@
+{
+  "version": "4.0.0",
+  "form": {
+    "name": "Post Account Linking",
+    "languages": {
+      "primary": "en"
+    },
+    "nodes": [
+      {
+        "id": "step_pgkI",
+        "type": "STEP",
+        "coordinates": {
+          "x": 500,
+          "y": 0
+        },
+        "alias": "New step",
+        "config": {
+          "components": [
+            {
+              "id": "ext_translation_script",
+              "category": "BLOCK",
+              "type": "HTML",
+              "config": {
+                "content": "<script type=\"text/javascript\">\n  var connectionType = \"{{ fields.connection_type }}\" || \"\";\n  var formType = \"post_account_linking\";\n\n  applyFormsTranslations(connectionType, formType);\n</script>"
+              }
+            },
+            {
+              "id": "rich_text_PJBF",
+              "category": "BLOCK",
+              "type": "RICH_TEXT",
+              "config": {
+                "content": "<h2>Your MARLÖ account is now connected with {{ fields.connection_type }}</h2><p>You can now use your {{ fields.connection_type }} account to sign in.</p>"
+              }
+            },
+            {
+              "id": "next_button_QAyw",
+              "category": "BLOCK",
+              "type": "NEXT_BUTTON",
+              "config": {
+                "text": "Ok"
+              }
+            }
+          ],
+          "next_node": "$ending"
+        }
+      }
+    ],
+    "start": {
+      "hidden_fields": [
+        {
+          "key": "connection_type"
+        }
+      ],
+      "next_node": "step_pgkI",
+      "coordinates": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    "ending": {
+      "resume_flow": true,
+      "coordinates": {
+        "x": 1250,
+        "y": 0
+      }
+    }
+  },
+  "flows": {},
+  "connections": {}
+}

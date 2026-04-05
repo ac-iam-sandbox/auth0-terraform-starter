@@ -27,6 +27,14 @@ locals {
       }
     )
   }
+
+  # Whether testing override is active (for safety check).
+  testing_active = {
+    for k, v in local.active : k => (
+      lookup(v, "testing", null) != null
+      && contains(lookup(lookup(v, "testing", {}), "envs", []), var.environment)
+    )
+  }
 }
 
 resource "auth0_action_module" "this" {
@@ -53,6 +61,10 @@ resource "auth0_action_module" "this" {
   }
 
   lifecycle {
+    precondition {
+      condition     = !(contains(["val", "prod"], var.environment) && local.testing_active[each.key])
+      error_message = "Action module '${each.key}': val and prod must not resolve testing artifacts. Promote by overwriting main.js and removing the testing block."
+    }
     prevent_destroy = true
   }
 }

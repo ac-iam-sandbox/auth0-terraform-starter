@@ -1,3 +1,20 @@
+# Auth0 vault connection, flow, and form definitions.
+# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/flow_vault_connection
+# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/flow
+# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/form
+#
+# environments: Required list of envs where a resource should exist.
+#               Every resource MUST have an explicit environments key.
+#
+# Flows: form-local flows use source_form + source_key to extract from
+#        the owning form's export. Shared flows use source_file.
+#        conn_refs map #CONN-N# placeholders to vault connection keys.
+#
+# Forms: code points to the exported JSON (main.json).
+#        flow_refs map #FLOW-N# placeholders to flow keys.
+#        Use testing block for dev/qa iteration (next.json).
+#        val and prod MUST always resolve to main.json.
+
 vault_connections:
   auth0-m2m:
     app_id: "AUTH0"
@@ -11,5 +28,88 @@ vault_connections:
     setup_secrets:
       client_secret: "VAULT_AUTH0_CLIENT_SECRET"
 
-flows: {}
-forms: {}
+# ── Flows ────────────────────────────────────────────────────────────
+# Form-local flows: extracted from the owning form's export JSON.
+# Conn refs replaced with Terraform-managed vault connection IDs.
+flows:
+  # Email Verification flows
+  ev-send-email-otp:
+    name: "Verify Email (OTP and Send Email)"
+    environments: [dev]
+    source_form: "email-verification"
+    source_key: "#FLOW-1#"
+
+  ev-verify-otp-update:
+    name: "Verify Email (Verify OTP and Update User)"
+    environments: [dev]
+    source_form: "email-verification"
+    source_key: "#FLOW-2#"
+    conn_refs:
+      - placeholder: "#CONN-1#"
+        vault_key: "auth0-m2m"
+
+  # Progressive Profiling flows
+  pp-update-user:
+    name: "Progressive Profiling (Update User)"
+    environments: [dev]
+    source_form: "progressive-profiling"
+    source_key: "#FLOW-1#"
+    conn_refs:
+      - placeholder: "#CONN-1#"
+        vault_key: "auth0-m2m"
+
+  pp-send-email-otp:
+    name: "Progressive Profiling (OTP and Send Email)"
+    environments: [dev]
+    source_form: "progressive-profiling"
+    source_key: "#FLOW-2#"
+
+  pp-verify-otp-update:
+    name: "Progressive Profiling (Verify OTP and Update User)"
+    environments: [dev]
+    source_form: "progressive-profiling"
+    source_key: "#FLOW-3#"
+    conn_refs:
+      - placeholder: "#CONN-1#"
+        vault_key: "auth0-m2m"
+
+# ── Forms ────────────────────────────────────────────────────────────
+# Each form's code points to the exported dashboard JSON.
+# flow_refs map #FLOW-N# placeholders to flow keys defined above.
+# Forms without flows have no flow_refs.
+forms:
+  email-verification:
+    name: "Email Verification"
+    environments: [dev]
+    code: "main.json"
+    primary_language: "en"
+    flow_refs:
+      - placeholder: "#FLOW-1#"
+        flow_key: "ev-send-email-otp"
+      - placeholder: "#FLOW-2#"
+        flow_key: "ev-verify-otp-update"
+
+  progressive-profiling:
+    name: "Progressive Profiling"
+    environments: [dev]
+    code: "main.json"
+    primary_language: "en"
+    flow_refs:
+      - placeholder: "#FLOW-1#"
+        flow_key: "pp-update-user"
+      - placeholder: "#FLOW-2#"
+        flow_key: "pp-send-email-otp"
+      - placeholder: "#FLOW-3#"
+        flow_key: "pp-verify-otp-update"
+
+  account-linking:
+    name: "Account Linking"
+    environments: [dev]
+    code: "main.json"
+    primary_language: "en"
+
+  post-account-linking:
+    name: "Post Account Linking"
+    environments: [dev]
+    code: "main.json"
+    primary_language: "en"

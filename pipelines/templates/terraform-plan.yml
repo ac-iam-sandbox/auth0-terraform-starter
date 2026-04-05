@@ -4,6 +4,9 @@ parameters:
   - name: region
     type: string
     default: "na"
+  - name: publish_binary_plan
+    type: boolean
+    default: true
 
 jobs:
   - job: plan
@@ -60,9 +63,58 @@ jobs:
           AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
           AWS_DEFAULT_REGION: $(AWS_DEFAULT_REGION)
 
-      - publish: $(Build.ArtifactStagingDirectory)/${{ parameters.environment }}.tfplan
-        artifact: ${{ parameters.region }}-${{ parameters.environment }}-plan
-        displayName: "Publish plan artifact"
+      - script: |
+          #!/bin/bash
+          SUMMARY="$(Build.ArtifactStagingDirectory)/plan-summary.txt"
+          ENV="${{ parameters.environment }}"
+
+          echo ""
+          echo "============================================================"
+          echo " Plan Summary: ${ENV}"
+          echo "============================================================"
+
+          # Extract the plan line (e.g. "Plan: 3 to add, 1 to change, 0 to destroy.")
+          PLAN_LINE=$(grep -E '^Plan:|^No changes' "$SUMMARY" 2>/dev/null | tail -1)
+
+          if echo "$PLAN_LINE" | grep -q "No changes"; then
+            echo " Result: No changes. Infrastructure matches configuration."
+            echo "============================================================"
+            exit 0
+          fi
+
+          ADD=$(echo "$PLAN_LINE" | grep -oP '\d+ to add' | grep -oP '\d+' || echo "0")
+          CHG=$(echo "$PLAN_LINE" | grep -oP '\d+ to change' | grep -oP '\d+' || echo "0")
+          DEL=$(echo "$PLAN_LINE" | grep -oP '\d+ to destroy' | grep -oP '\d+' || echo "0")
+
+          printf " %-12s %-8s %-8s %-8s\n" "Metric" "Count" "" ""
+          printf " %-12s %-8s\n" "----------" "-----"
+          printf " %-12s %-8s\n" "Add" "${ADD:-0}"
+          printf " %-12s %-8s\n" "Change" "${CHG:-0}"
+          printf " %-12s %-8s\n" "Destroy" "${DEL:-0}"
+          echo ""
+
+          # Per-module breakdown
+          echo " Changes by module:"
+          grep -E '^\s+#' "$SUMMARY" 2>/dev/null | sed 's/^[[:space:]]*/  /' | head -30
+
+          echo ""
+          echo "============================================================"
+
+          # Warnings
+          if [ "${DEL:-0}" -gt 0 ]; then
+            echo "##[warning]Plan includes ${DEL} resource DESTRUCTION(s) in ${ENV}. Review carefully before approving."
+          fi
+
+          if [ "${ENV}" = "prod" ] && [ "$((${ADD:-0} + ${CHG:-0} + ${DEL:-0}))" -gt 10 ]; then
+            echo "##[warning]Large change set (${ADD:-0} add, ${CHG:-0} change, ${DEL:-0} destroy) targeting prod. Consider splitting into smaller releases."
+          fi
+        displayName: "Plan summary table"
+        condition: succeededOrFailed()
+
+      - ${{ if eq(parameters.publish_binary_plan, true) }}:
+        - publish: $(Build.ArtifactStagingDirectory)/${{ parameters.environment }}.tfplan
+          artifact: ${{ parameters.region }}-${{ parameters.environment }}-plan
+          displayName: "Publish plan artifact (sensitive — contains secrets)"
 
       - publish: $(Build.ArtifactStagingDirectory)/plan-summary.txt
         artifact: ${{ parameters.region }}-${{ parameters.environment }}-plan-summary

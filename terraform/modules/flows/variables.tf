@@ -2,7 +2,12 @@ variable "definitions" {
   type = any
 }
 
-# tflint-ignore: terraform_unused_declarations
+variable "forms_manifest" {
+  description = "Forms definitions for resolving source_form file paths"
+  type        = any
+  default     = {}
+}
+
 variable "environment" {
   type = string
 }

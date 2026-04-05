@@ -11,6 +11,7 @@ locals {
   flows_manifest = yamldecode(file("${path.module}/manifests/flows.yaml"))
   vault_conns    = local.flows_manifest["vault_connections"]
   flows          = local.flows_manifest["flows"]
+  forms          = lookup(local.flows_manifest, "forms", {})
 }
 
 # 1. Vault connections
@@ -45,17 +46,17 @@ module "actions" {
 module "flows" {
   source                   = "./modules/flows"
   definitions              = local.flows
+  forms_manifest           = local.forms
   environment              = var.environment
   vault_connection_outputs = module.vault_connections.connection_map
 }
 
-# 5. Forms (depends on flows + vault_connections)
+# 5. Forms (depends on flows)
 module "forms" {
-  source                   = "./modules/forms"
-  definitions              = local.flows_manifest
-  environment              = var.environment
-  flow_outputs             = module.flows.flow_map
-  vault_connection_outputs = module.vault_connections.connection_map
+  source       = "./modules/forms"
+  definitions  = local.forms
+  environment  = var.environment
+  flow_outputs = module.flows.flow_map
 }
 
 # 6. Clients (independent)
