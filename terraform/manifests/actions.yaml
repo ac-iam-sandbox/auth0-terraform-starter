@@ -1,19 +1,12 @@
-# Auth0 action definitions.
-# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/action
-#
-# environments: Required list of envs where this action should exist.
-#               Every resource MUST have an explicit environments key.
-#
-# testing: Optional block to route specific envs to next.js.
-#
-# Order of actions = execution order per trigger.
 actions:
+  # Pre-user-registration actions
   enrich-signup-profile:
     name: "Enrich Signup Profile"
     trigger: "pre-user-registration"
     trigger_version: "v2"
     runtime: "node22"
     deploy: true
+    order: 1
     environments: [dev, qa, val, prod]
     code: "main.js"
     dependencies: {}
@@ -23,3 +16,104 @@ actions:
     modules:
       - module_key: "entry-path-verification"
       - module_key: "signup-validation"
+
+  #Post-login actions
+  enforce-email-verification:
+    name: "Enforce Email Verification"
+    trigger: "post-login"
+    trigger_version: "v3"
+    runtime: "node22"
+    deploy: true
+    order: 1
+    environments: [dev]
+    code: "main.js"
+    dependencies: {}
+    secrets_config:
+      - "FORM_ID"
+    secrets_pipeline: []
+
+  complete-social-profile:
+    name: "Complete Social Profile"
+    trigger: "post-login"
+    trigger_version: "v3"
+    runtime: "node22"
+    deploy: true
+    order: 2
+    environments: [dev]
+    code: "main.js"
+    dependencies: {}
+    secrets_config:
+      - "API_BASE_URL"
+      - "PROFILE_FORM_ID"
+      - "LINKING_FORM_ID"
+    secrets_pipeline: []
+    modules:
+      - module_key: "account-linking"
+      - module_key: "entry-path-verification"
+      - module_key: "signup-validation"
+
+  link-accounts:
+    name: "Link Accounts"
+    trigger: "post-login"
+    trigger_version: "v3"
+    runtime: "node22"
+    deploy: true
+    order: 3
+    environments: [dev]
+    code: "main.js"
+    dependencies: {}
+    secrets_config:
+      - "LINKING_FORM_ID"
+    secrets_pipeline: []
+    modules:
+      - module_key: "account-linking"
+
+  post-account-linking:
+    name: "Post Account Linking"
+    trigger: "post-login"
+    trigger_version: "v3"
+    runtime: "node22"
+    deploy: true
+    order: 4
+    environments: [dev]
+    code: "main.js"
+    dependencies: {}
+    secrets_config:
+      - "LINKING_SUCCESS_FORM_ID"
+    secrets_pipeline: []
+
+  custom-claims:
+    name: "Custom Claims"
+    trigger: "post-login"
+    trigger_version: "v3"
+    runtime: "node22"
+    deploy: true
+    order: 5
+    environments: [dev]
+    code: "main.js"
+    dependencies: {}
+    secrets_pipeline: []
+
+  token-enrichment:
+    name: "Token Enrichment"
+    trigger: "post-login"
+    trigger_version: "v3"
+    runtime: "node22"
+    deploy: true
+    order: 6
+    environments: [dev]
+    code: "main.js"
+    dependencies: {}
+    secrets_pipeline: []
+
+  token-check:
+    name: "Token Check"
+    trigger: "post-login"
+    trigger_version: "v3"
+    runtime: "node22"
+    deploy: true
+    order: 7
+    environments: [dev]
+    code: "main.js"
+    dependencies: {}
+    secrets_pipeline: []

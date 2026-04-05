@@ -72,16 +72,19 @@ resource "auth0_action" "this" {
   }
 }
 
-# Trigger bindings — only includes active actions.
-# YAML order = execution order.
+# Trigger bindings — sorted by 'order' field from YAML manifest.
+# Actions sharing a trigger are bound in ascending order value.
 locals {
   triggers = distinct([for k, v in local.active : v.trigger])
   actions_by_trigger = {
     for trigger in local.triggers : trigger => [
-      for k in keys(local.active) : {
-        key  = k
-        name = local.active[k].name
-      } if local.active[k].trigger == trigger
+      for pair in sort([
+        for k, v in local.active : format("%04d|%s", lookup(v, "order", 9999), k)
+        if v.trigger == trigger
+        ]) : {
+        key  = element(split("|", pair), 1)
+        name = local.active[element(split("|", pair), 1)].name
+      }
     ]
   }
 }

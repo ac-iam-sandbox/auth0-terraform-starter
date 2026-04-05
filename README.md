@@ -14,7 +14,8 @@ Manages Auth0 CIC (Customer Identity Cloud) tenant configuration across four env
 8. **`prevent_destroy` on critical resources.** Clients, vault connections, actions, and action modules.
 9. **M2M client grants are NOT managed here.** Separate team uses outputted `client_id`.
 10. **Commit `.terraform.lock.hcl`.** Ensures plan and apply use identical provider versions.
-11. **Single pipeline run deploys everything.** Terraform dependency graph handles module → action → trigger ordering.
+11. **Single pipeline run deploys everything.** Terraform dependency graph handles module -> action -> trigger ordering.
+12. **Explicit `order` field controls trigger execution sequence.** Actions sharing a trigger are sorted by their `order` value. Terraform maps are unordered — without this field, actions would bind in alphabetical key order.
 
 ---
 
@@ -376,9 +377,9 @@ terraform import -var="environment=dev" \
 
 ### New action
 1. Create `actions/{name}/main.js`
-2. Add to `manifests/actions.yaml` with `environments: [dev]`
+2. Add to `manifests/actions.yaml` with `environments: [dev]` and an `order` value that places it correctly in its trigger's execution sequence
 3. Add env config to `manifests/environments/dev.yaml` under `actions.{key}` (for any `secrets_config` entries)
-4. PR → merge → approve → apply
+4. PR → multi-env plan confirms it only appears in dev → merge → approve → apply
 
 ### New action module
 1. Create `action_modules/{name}/main.js`

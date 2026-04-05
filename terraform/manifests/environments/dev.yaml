@@ -1,13 +1,10 @@
 # Dev environment configuration.
-# Nested by resource type — mirrors manifest structure.
 
 tenant:
   auth0_domain: "na-dev-axon-cic.us.auth0.com"
   region: "na"
 
 # Client env-specific values keyed by client manifest key.
-# Only clients that need env-specific values appear here.
-# M2M clients with no callbacks/URLs don't need entries.
 clients:
   marlo:
     callbacks:   ["https://dev.marlo.example.com/callback"]
@@ -30,3 +27,13 @@ action_modules:
 actions:
   enrich-signup-profile:
     API_BASE_URL: "https://dev2.nonprod-store.myalcon.com"
+  enforce-email-verification:
+    FORM_ID: "REPLACE_WITH_dev_EMAIL_VERIFICATION_FORM_ID"
+  complete-social-profile:
+    API_BASE_URL: "https://dev2.nonprod-store.myalcon.com"
+    PROFILE_FORM_ID: "REPLACE_WITH_dev_PROFILE_FORM_ID"
+    LINKING_FORM_ID: "REPLACE_WITH_dev_LINKING_FORM_ID"
+  link-accounts:
+    LINKING_FORM_ID: "REPLACE_WITH_dev_LINKING_FORM_ID"
+  post-account-linking:
+    LINKING_SUCCESS_FORM_ID: "REPLACE_WITH_dev_LINKING_SUCCESS_FORM_ID"

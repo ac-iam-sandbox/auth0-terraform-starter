@@ -1,13 +1,3 @@
-# Auth0 action module definitions.
-# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/action_module
-#
-# environments: Required list of envs where this module should exist.
-#               Every resource MUST have an explicit environments key.
-#               Example: environments: [dev, qa]
-#
-# testing: Optional block to route specific envs to next.js during development.
-#
-# IMPORTANT: Pin all dependency versions. Never use "latest".
 action_modules:
   entry-path-verification:
     name: "Entry Path Verification"

@@ -1,14 +1,3 @@
-# Auth0 client definitions.
-# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/client
-#
-# Env-specific values (callbacks, URLs) come from environments/{env}.yaml
-# under the "clients" section, keyed by the client key below.
-#
-# Required "environments" list controls which envs a client exists in.
-# Every resource MUST have an explicit environments key.
-# Example: environments: ["dev", "qa"]  → only created in dev and qa.
-#
-# M2M client grants are NOT managed here — separate team uses outputted client_id.
 clients:
   auth0-actions:
     name: "Auth0 Actions Service"
