@@ -1,5 +1,5 @@
 # Auto-triggers plan on merge to master. Apply requires approval.
-
+# Pipeline name in Azure DevOps: "Platform Ops - Deploy Dev"
 trigger:
   branches:
     include:
@@ -12,7 +12,7 @@ pool:
   vmImage: "ubuntu-latest"
 
 variables:
-  - group: na-dev-axon-cic
+  - group: na-dev-axon-platform-ops
 
 stages:
   - stage: security_and_quality

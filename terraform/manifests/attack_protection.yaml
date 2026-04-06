@@ -1,0 +1,47 @@
+# Auth0 attack protection configuration.
+# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/attack_protection
+#
+# Singleton resource - one per tenant. Applied to all environments.
+attack_protection:
+  brute_force_protection:
+    enabled: true
+    shields: ["block", "user_notification"]
+    allowlist: []
+    mode: "count_per_identifier_and_ip"
+    max_attempts: 10
+
+  suspicious_ip_throttling:
+    enabled: true
+    shields: ["admin_notification", "block"]
+    allowlist: []
+    pre_login:
+      max_attempts: 100
+      rate: 864000
+    pre_user_registration:
+      max_attempts: 50
+      rate: 1200
+
+  breached_password_detection:
+    enabled: true
+    shields: ["admin_notification", "block"]
+    admin_notification_frequency: ["daily"]
+    method: "standard"
+    pre_user_registration:
+      shields: ["block"]
+    pre_change_password:
+      shields: ["admin_notification", "block"]
+
+  # Bot detection
+  # bot_detection:
+  #   bot_detection_level: "medium"
+  #   challenge_password_policy: "when_risky"
+  #   challenge_passwordless_policy: "when_risky"
+  #   challenge_password_reset_policy: "always"
+  #   allowlist: []
+  #   monitoring_mode_enabled: false
+
+  # captcha:
+  #   active_provider_id: "recaptcha_v2"
+  #   recaptcha_v2:
+  #     site_key: "PLACEHOLDER"
+  #     secret: "PLACEHOLDER"

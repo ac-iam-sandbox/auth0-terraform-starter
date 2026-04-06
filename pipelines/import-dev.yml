@@ -1,140 +1,48 @@
 # ONE-TIME import pipeline for bootstrapping existing Auth0 resources into Terraform state.
-# Pipeline name in Azure DevOps: "CIC - Import Dev (one-time)"
-#
-# Usage:
-#   1. Get resource IDs from the Auth0 dev dashboard
-#   2. Fill in the parameters below
-#   3. Run this pipeline manually
-#   4. Review the plan output to verify minimal drift
-#   5. After successful import, this pipeline is no longer needed
+# Pipeline name in Azure DevOps: "Platform Ops - Import Dev (one-time)"
 #
 # Where to find IDs:
-#   Clients:          Dashboard → Applications → click app → Settings → Client ID
-#   Action modules:   Dashboard → Actions → Library → Modules → click module → ID in URL
-#   Actions:          Dashboard → Actions → Library → Custom → click action → ID in URL
-#   Vault connection: Dashboard → Actions → Forms → Flows → Vault → click → ID (ac_xxxxx)
-#   Flows:            Dashboard → Actions → Forms → Flows → click flow → ID (flow_xxxxx)
-#   Forms:            Dashboard → Actions → Forms → click form → ID (ap_xxxxx)
+#   Clients:           Dashboard → Applications → click app → Settings → Client ID
+#   Client grants:     Dashboard → Applications → APIs → Expand the API → grant ID
+#   Singletons:        Import using a random string (tenant, attack_protection, guardian, email_provider)
 trigger: none
 
 parameters:
-  # ── Clients ──
-  - name: client_auth0_actions
-    displayName: "Client ID: auth0-actions"
-    type: string
-    default: "SKIP"
-  - name: client_auth0_vault
-    displayName: "Client ID: auth0-vault"
+  # Singletons (import with random string)
+  - name: import_tenant
+    displayName: "Import tenant settings?"
+    type: boolean
+    default: true
+  - name: import_attack_protection
+    displayName: "Import attack protection?"
+    type: boolean
+    default: true
+  - name: import_email_provider
+    displayName: "Import email provider?"
+    type: boolean
+    default: true
+  - name: import_guardian
+    displayName: "Import Guardian MFA?"
+    type: boolean
+    default: true
+
+  # Clients
+  - name: client_email_template_service
+    displayName: "Client ID: email-template-service"
     type: string
     default: "SKIP"
   - name: client_branded_ui_service
     displayName: "Client ID: branded-ui-service"
     type: string
     default: "SKIP"
-  - name: client_email_template_service
-    displayName: "Client ID: email-template-service"
-    type: string
-    default: "SKIP"
-  - name: client_marlo
-    displayName: "Client ID: marlo"
-    type: string
-    default: "SKIP"
-  - name: client_mulesoft
-    displayName: "Client ID: mulesoft"
-    type: string
-    default: "SKIP"
 
-  # ── Action modules ──
-  - name: module_entry_path_verification
-    displayName: "Module ID: entry-path-verification"
+  # Client grants
+  - name: grant_email_template_service_mgmt_api
+    displayName: "Grant ID: email-template-service-mgmt-api"
     type: string
     default: "SKIP"
-  - name: module_account_linking
-    displayName: "Module ID: account-linking"
-    type: string
-    default: "SKIP"
-  - name: module_signup_validation
-    displayName: "Module ID: signup-validation"
-    type: string
-    default: "SKIP"
-
-  # ── Actions ──
-  - name: action_enrich_signup_profile
-    displayName: "Action ID: enrich-signup-profile"
-    type: string
-    default: "SKIP"
-  - name: action_enforce_email_verification
-    displayName: "Action ID: enforce-email-verification"
-    type: string
-    default: "SKIP"
-  - name: action_complete_social_profile
-    displayName: "Action ID: complete-social-profile"
-    type: string
-    default: "SKIP"
-  - name: action_link_accounts
-    displayName: "Action ID: link-accounts"
-    type: string
-    default: "SKIP"
-  - name: action_post_account_linking
-    displayName: "Action ID: post-account-linking"
-    type: string
-    default: "SKIP"
-  - name: action_custom_claims
-    displayName: "Action ID: custom-claims"
-    type: string
-    default: "SKIP"
-  - name: action_token_enrichment
-    displayName: "Action ID: token-enrichment"
-    type: string
-    default: "SKIP"
-  - name: action_token_check
-    displayName: "Action ID: token-check"
-    type: string
-    default: "SKIP"
-
-  # ── Vault connection ──
-  - name: vault_auth0_m2m
-    displayName: "Vault connection ID: auth0-m2m (ac_xxxxx)"
-    type: string
-    default: "SKIP"
-
-  # ── Flows ──
-  - name: flow_ev_send_email_otp
-    displayName: "Flow ID: ev-send-email-otp"
-    type: string
-    default: "SKIP"
-  - name: flow_ev_verify_otp_update
-    displayName: "Flow ID: ev-verify-otp-update"
-    type: string
-    default: "SKIP"
-  - name: flow_pp_update_user
-    displayName: "Flow ID: pp-update-user"
-    type: string
-    default: "SKIP"
-  - name: flow_pp_send_email_otp
-    displayName: "Flow ID: pp-send-email-otp"
-    type: string
-    default: "SKIP"
-  - name: flow_pp_verify_otp_update
-    displayName: "Flow ID: pp-verify-otp-update"
-    type: string
-    default: "SKIP"
-
-  # ── Forms ──
-  - name: form_email_verification
-    displayName: "Form ID: email-verification (ap_xxxxx)"
-    type: string
-    default: "SKIP"
-  - name: form_progressive_profiling
-    displayName: "Form ID: progressive-profiling (ap_xxxxx)"
-    type: string
-    default: "SKIP"
-  - name: form_account_linking
-    displayName: "Form ID: account-linking (ap_xxxxx)"
-    type: string
-    default: "SKIP"
-  - name: form_post_account_linking
-    displayName: "Form ID: post-account-linking (ap_xxxxx)"
+  - name: grant_branded_ui_service_mgmt_api
+    displayName: "Grant ID: branded-ui-service-mgmt-api"
     type: string
     default: "SKIP"
 
@@ -142,7 +50,7 @@ pool:
   vmImage: "ubuntu-latest"
 
 variables:
-  - group: na-dev-axon-cic
+  - group: na-dev-axon-platform-ops
 
 stages:
   - stage: import
@@ -192,101 +100,46 @@ stages:
               }
 
               echo "╔══════════════════════════════════════════════════╗"
-              echo "║  Auth0 Dev Import                               ║"
+              echo "║  Platform Ops Dev Import                        ║"
               echo "╚══════════════════════════════════════════════════╝"
               echo ""
 
-              # ── Clients ──
-              echo "── Clients ──"
-              import_resource 'module.clients.auth0_client.this["auth0-actions"]' \
-                "${{ parameters.client_auth0_actions }}" "auth0-actions"
-              import_resource 'module.clients.auth0_client.this["auth0-vault"]' \
-                "${{ parameters.client_auth0_vault }}" "auth0-vault"
-              import_resource 'module.clients.auth0_client.this["branded-ui-service"]' \
-                "${{ parameters.client_branded_ui_service }}" "branded-ui-service"
+              # Singletons
+              echo "── Singleton resources"
+              if [ "${{ parameters.import_tenant }}" = "True" ]; then
+                import_resource 'module.tenant.auth0_tenant.this' \
+                  "existing-tenant" "tenant"
+              fi
+              if [ "${{ parameters.import_attack_protection }}" = "True" ]; then
+                import_resource 'module.attack_protection.auth0_attack_protection.this' \
+                  "existing-attack-protection" "attack_protection"
+              fi
+              if [ "${{ parameters.import_email_provider }}" = "True" ]; then
+                import_resource 'module.email_provider.auth0_email_provider.this' \
+                  "existing-email-provider" "email_provider"
+              fi
+              if [ "${{ parameters.import_guardian }}" = "True" ]; then
+                import_resource 'module.guardian.auth0_guardian.this' \
+                  "existing-guardian" "guardian"
+              fi
+
+              # Clients
+              echo ""
+              echo "── Clients"
               import_resource 'module.clients.auth0_client.this["email-template-service"]' \
                 "${{ parameters.client_email_template_service }}" "email-template-service"
-              import_resource 'module.clients.auth0_client.this["marlo"]' \
-                "${{ parameters.client_marlo }}" "marlo"
-              import_resource 'module.clients.auth0_client.this["mulesoft"]' \
-                "${{ parameters.client_mulesoft }}" "mulesoft"
+              import_resource 'module.clients.auth0_client.this["branded-ui-service"]' \
+                "${{ parameters.client_branded_ui_service }}" "branded-ui-service"
 
-              # ── Action modules ──
+              # Client grants
               echo ""
-              echo "── Action modules ──"
-              import_resource 'module.action_modules.auth0_action_module.this["entry-path-verification"]' \
-                "${{ parameters.module_entry_path_verification }}" "entry-path-verification"
-              import_resource 'module.action_modules.auth0_action_module.this["account-linking"]' \
-                "${{ parameters.module_account_linking }}" "account-linking"
-              import_resource 'module.action_modules.auth0_action_module.this["signup-validation"]' \
-                "${{ parameters.module_signup_validation }}" "signup-validation"
+              echo "── Client grants"
+              import_resource 'module.client_grants.auth0_client_grant.this["email-template-service-mgmt-api"]' \
+                "${{ parameters.grant_email_template_service_mgmt_api }}" "email-template-service-mgmt-api"
+              import_resource 'module.client_grants.auth0_client_grant.this["branded-ui-service-mgmt-api"]' \
+                "${{ parameters.grant_branded_ui_service_mgmt_api }}" "branded-ui-service-mgmt-api"
 
-              # ── Actions ──
-              echo ""
-              echo "── Actions ──"
-              import_resource 'module.actions.auth0_action.this["enrich-signup-profile"]' \
-                "${{ parameters.action_enrich_signup_profile }}" "enrich-signup-profile"
-              import_resource 'module.actions.auth0_action.this["enforce-email-verification"]' \
-                "${{ parameters.action_enforce_email_verification }}" "enforce-email-verification"
-              import_resource 'module.actions.auth0_action.this["complete-social-profile"]' \
-                "${{ parameters.action_complete_social_profile }}" "complete-social-profile"
-              import_resource 'module.actions.auth0_action.this["link-accounts"]' \
-                "${{ parameters.action_link_accounts }}" "link-accounts"
-              import_resource 'module.actions.auth0_action.this["post-account-linking"]' \
-                "${{ parameters.action_post_account_linking }}" "post-account-linking"
-              import_resource 'module.actions.auth0_action.this["custom-claims"]' \
-                "${{ parameters.action_custom_claims }}" "custom-claims"
-              import_resource 'module.actions.auth0_action.this["token-enrichment"]' \
-                "${{ parameters.action_token_enrichment }}" "token-enrichment"
-              import_resource 'module.actions.auth0_action.this["token-check"]' \
-                "${{ parameters.action_token_check }}" "token-check"
-
-              # ── Trigger bindings ──
-              echo ""
-              echo "── Trigger bindings ──"
-              # Only import if at least one action in that trigger was imported
-              if [ "${{ parameters.action_enrich_signup_profile }}" != "SKIP" ]; then
-                import_resource 'module.actions.auth0_trigger_actions.this["pre-user-registration"]' \
-                  "pre-user-registration" "trigger: pre-user-registration"
-              fi
-              if [ "${{ parameters.action_enforce_email_verification }}" != "SKIP" ]; then
-                import_resource 'module.actions.auth0_trigger_actions.this["post-login"]' \
-                  "post-login" "trigger: post-login"
-              fi
-
-              # ── Vault connection ──
-              echo ""
-              echo "── Vault connection ──"
-              import_resource 'module.vault_connections.auth0_flow_vault_connection.this["auth0-m2m"]' \
-                "${{ parameters.vault_auth0_m2m }}" "auth0-m2m"
-
-              # ── Flows ──
-              echo ""
-              echo "── Flows ──"
-              import_resource 'module.flows.auth0_flow.this["ev-send-email-otp"]' \
-                "${{ parameters.flow_ev_send_email_otp }}" "ev-send-email-otp"
-              import_resource 'module.flows.auth0_flow.this["ev-verify-otp-update"]' \
-                "${{ parameters.flow_ev_verify_otp_update }}" "ev-verify-otp-update"
-              import_resource 'module.flows.auth0_flow.this["pp-update-user"]' \
-                "${{ parameters.flow_pp_update_user }}" "pp-update-user"
-              import_resource 'module.flows.auth0_flow.this["pp-send-email-otp"]' \
-                "${{ parameters.flow_pp_send_email_otp }}" "pp-send-email-otp"
-              import_resource 'module.flows.auth0_flow.this["pp-verify-otp-update"]' \
-                "${{ parameters.flow_pp_verify_otp_update }}" "pp-verify-otp-update"
-
-              # ── Forms ──
-              echo ""
-              echo "── Forms ──"
-              import_resource 'module.forms.auth0_form.this["email-verification"]' \
-                "${{ parameters.form_email_verification }}" "email-verification"
-              import_resource 'module.forms.auth0_form.this["progressive-profiling"]' \
-                "${{ parameters.form_progressive_profiling }}" "progressive-profiling"
-              import_resource 'module.forms.auth0_form.this["account-linking"]' \
-                "${{ parameters.form_account_linking }}" "account-linking"
-              import_resource 'module.forms.auth0_form.this["post-account-linking"]' \
-                "${{ parameters.form_post_account_linking }}" "post-account-linking"
-
-              # ── Summary ──
+              # Summary
               echo ""
               echo "╔══════════════════════════════════════════════════╗"
               echo "║  Import Summary                                 ║"
@@ -297,7 +150,7 @@ stages:
               echo "╚══════════════════════════════════════════════════╝"
 
               if [ "$failed" -gt 0 ]; then
-                echo "##[warning]$failed import(s) failed. Review the output above and fix before running plan."
+                echo "##[warning]$failed import(s) failed. Review the output above."
               fi
             displayName: "Import resources"
             env:
@@ -309,8 +162,8 @@ stages:
               AUTH0_CLIENT_SECRET: $(AUTH0_CLIENT_SECRET)
               TF_VAR_secrets_json: >-
                 {
-                  "VAULT_AUTH0_CLIENT_SECRET": "$(VAULT_AUTH0_CLIENT_SECRET)",
-                  "MANAGEMENT_API_CLIENT_SECRET": "$(MANAGEMENT_API_CLIENT_SECRET)"
+                  "SES_ACCESS_KEY_ID": "$(SES_ACCESS_KEY_ID)",
+                  "SES_SECRET_ACCESS_KEY": "$(SES_SECRET_ACCESS_KEY)"
                 }
 
   - stage: verify

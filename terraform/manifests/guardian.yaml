@@ -1,0 +1,26 @@
+# Auth0 Guardian MFA configuration
+
+guardian:
+  policy: "never"
+  otp: true
+  email: true
+  recovery_code: false
+
+  # All other factors disabled at the moment
+  # Uncomment and configure as needed:
+  # phone:
+  #   enabled: false
+  #   provider: "auth0"
+  #   message_types: ["sms"]
+
+  # webauthn_roaming:
+  #   enabled: false
+
+  # webauthn_platform:
+  #   enabled: false
+
+  # push:
+  #   enabled: false
+
+  # duo:
+  #   enabled: false

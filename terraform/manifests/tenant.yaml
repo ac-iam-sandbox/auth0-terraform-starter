@@ -1,0 +1,26 @@
+# Auth0 tenant settings
+
+tenant:
+  friendly_name: "Axon CIC Platform"
+  enabled_locales: ["en"]
+  sandbox_version: "18"
+  idle_session_lifetime: 72
+  session_lifetime: 168
+
+  session_cookie:
+    mode: "persistent"
+
+  sessions:
+    oidc_logout_prompt_enabled: false
+
+  flags:
+    enable_client_connections: true
+    enable_apis_section: true
+    enable_pipeline2: true
+    revoke_refresh_token_grant: false
+    enable_dynamic_client_registration: false
+    no_disclose_enterprise_connections: true
+    disable_clickjack_protection_headers: false
+
+  error_page:
+    show_log_link: false

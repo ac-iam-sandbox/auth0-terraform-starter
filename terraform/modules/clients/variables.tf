@@ -5,7 +5,3 @@ variable "definitions" {
 variable "environment" {
   type = string
 }
-
-variable "env_config" {
-  type = any
-}

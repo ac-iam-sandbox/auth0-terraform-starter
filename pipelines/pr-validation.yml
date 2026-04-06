@@ -1,7 +1,5 @@
 # Runs on pull requests: security scan + validate + plan dev and qa.
-# Binary plan artifacts are NOT published for PRs (no apply stage).
-# Note: This pipeline is for PR validation only. It does NOT include an apply stage.
-
+# Pipeline name in Azure DevOps: "Platform Ops - PR Validation"
 trigger: none
 
 pr:
@@ -16,29 +14,26 @@ pool:
   vmImage: "ubuntu-latest"
 
 stages:
-  # ── Stage 1: Security & quality (no credentials needed) ───────────
   - stage: security_and_quality
     displayName: "Security & quality"
     jobs:
       - template: templates/security-scan.yml
 
-  # ── Stage 2: Terraform validation (uses dev for init) ─────────────
   - stage: terraform_validation
     displayName: "Terraform validation"
     dependsOn: security_and_quality
     variables:
-      - group: na-dev-axon-cic
+      - group: na-dev-axon-platform-ops
     jobs:
       - template: templates/terraform-validate.yml
         parameters:
           environment: dev
 
-  # ── Stage 3: Plan dev ─────────────────────────────────────────────
   - stage: plan_dev
     displayName: "Plan (dev)"
     dependsOn: terraform_validation
     variables:
-      - group: na-dev-axon-cic
+      - group: na-dev-axon-platform-ops
     jobs:
       - template: templates/terraform-plan.yml
         parameters:
@@ -46,12 +41,11 @@ stages:
           region: na
           publish_binary_plan: false
 
-  # ── Stage 4: Plan qa (parallel with dev completing) ───────────────
   - stage: plan_qa
     displayName: "Plan (qa)"
     dependsOn: plan_dev
     variables:
-      - group: na-qa-axon-cic
+      - group: na-qa-axon-platform-ops
     jobs:
       - template: templates/terraform-plan.yml
         parameters:
@@ -59,7 +53,6 @@ stages:
           region: na
           publish_binary_plan: false
 
-  # ── Stage 5: Post plan summary as PR comment ──────────────────────
   - stage: pr_comment
     displayName: "PR comment"
     dependsOn:

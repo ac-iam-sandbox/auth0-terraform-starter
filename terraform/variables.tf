@@ -9,7 +9,7 @@ variable "environment" {
 }
 
 variable "secrets_json" {
-  description = "JSON string of secret values for this environment. Populated by pipeline via TF_VAR_secrets_json. Example: {\"VAULT_AUTH0_CLIENT_SECRET\":\"abc123\"}"
+  description = "JSON string of secret values for this environment. Populated by pipeline via TF_VAR_secrets_json."
   type        = string
   sensitive   = true
   default     = "{}"

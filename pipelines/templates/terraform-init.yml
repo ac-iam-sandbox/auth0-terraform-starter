@@ -1,6 +1,3 @@
-# Terraform Init Template
-# This template initializes Terraform for the specified environment.
-
 parameters:
   - name: environment
     type: string

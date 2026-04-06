@@ -1,5 +1,5 @@
 # Manual trigger to promote to qa, val, or prod.
-
+# Pipeline name in Azure DevOps: "Platform Ops - Promote"
 trigger: none
 
 parameters:
@@ -21,7 +21,7 @@ pool:
   vmImage: "ubuntu-latest"
 
 variables:
-  - group: ${{ parameters.region }}-${{ parameters.target_environment }}-axon-cic
+  - group: ${{ parameters.region }}-${{ parameters.target_environment }}-axon-platform-ops
 
 stages:
   - stage: security_and_quality

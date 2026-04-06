@@ -1,7 +1,2 @@
-# Bucket name comes from TF_STATE_BUCKET in variable group na-qa-axon-cic.
-# If using variable group value, override at init:
-#   terraform init -backend-config="bucket=$(TF_STATE_BUCKET)" -backend-config=backends/qa.s3.tfbackend
-key          = "auth0/qa/terraform.tfstate"
-region       = "us-east-1"
-encrypt      = true
-use_lockfile = true
+key    = "auth0-platform-ops/qa/terraform.tfstate"
+region = "us-east-1"

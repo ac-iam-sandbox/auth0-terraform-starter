@@ -34,19 +34,15 @@ jobs:
           AUTH0_CLIENT_SECRET: $(AUTH0_CLIENT_SECRET)
           TF_VAR_secrets_json: >-
             {
-              "VAULT_AUTH0_CLIENT_SECRET": "$(VAULT_AUTH0_CLIENT_SECRET)",
-              "MANAGEMENT_API_CLIENT_SECRET": "$(MANAGEMENT_API_CLIENT_SECRET)"
+              "SES_ACCESS_KEY_ID": "$(SES_ACCESS_KEY_ID)",
+              "SES_SECRET_ACCESS_KEY": "$(SES_SECRET_ACCESS_KEY)"
             }
 
       - script: |
           LOG="$(Build.ArtifactStagingDirectory)/plan-output.log"
           if grep -qiE '429|rate.limit|too many requests|throttl' "$LOG" 2>/dev/null; then
-            echo "##[warning]Auth0 rate limiting detected during plan (${{ parameters.environment }}). Consider reducing parallelism (-parallelism=5) or splitting state."
-            echo ""
-            echo "Rate limit occurrences:"
+            echo "##[warning]Auth0 rate limiting detected during plan (${{ parameters.environment }})."
             grep -ciE '429|rate.limit|too many requests|throttl' "$LOG" | xargs -I{} echo "  {} occurrence(s) found"
-            echo ""
-            grep -iE '429|rate.limit|too many requests|throttl' "$LOG" | head -5
           else
             echo "No rate limiting detected."
           fi
@@ -73,7 +69,6 @@ jobs:
           echo " Plan Summary: ${ENV}"
           echo "============================================================"
 
-          # Extract the plan line (e.g. "Plan: 3 to add, 1 to change, 0 to destroy.")
           PLAN_LINE=$(grep -E '^Plan:|^No changes' "$SUMMARY" 2>/dev/null | tail -1)
 
           if echo "$PLAN_LINE" | grep -q "No changes"; then
@@ -86,27 +81,25 @@ jobs:
           CHG=$(echo "$PLAN_LINE" | grep -oP '\d+ to change' | grep -oP '\d+' || echo "0")
           DEL=$(echo "$PLAN_LINE" | grep -oP '\d+ to destroy' | grep -oP '\d+' || echo "0")
 
-          printf " %-12s %-8s %-8s %-8s\n" "Metric" "Count" "" ""
+          printf " %-12s %-8s\n" "Metric" "Count"
           printf " %-12s %-8s\n" "----------" "-----"
           printf " %-12s %-8s\n" "Add" "${ADD:-0}"
           printf " %-12s %-8s\n" "Change" "${CHG:-0}"
           printf " %-12s %-8s\n" "Destroy" "${DEL:-0}"
           echo ""
 
-          # Per-module breakdown
           echo " Changes by module:"
           grep -E '^\s+#' "$SUMMARY" 2>/dev/null | sed 's/^[[:space:]]*/  /' | head -30
 
           echo ""
           echo "============================================================"
 
-          # Warnings
           if [ "${DEL:-0}" -gt 0 ]; then
-            echo "##[warning]Plan includes ${DEL} resource DESTRUCTION(s) in ${ENV}. Review carefully before approving."
+            echo "##[warning]Plan includes ${DEL} resource DESTRUCTION(s) in ${ENV}. Review carefully."
           fi
 
           if [ "${ENV}" = "prod" ] && [ "$((${ADD:-0} + ${CHG:-0} + ${DEL:-0}))" -gt 10 ]; then
-            echo "##[warning]Large change set (${ADD:-0} add, ${CHG:-0} change, ${DEL:-0} destroy) targeting prod. Consider splitting into smaller releases."
+            echo "##[warning]Large change set targeting prod. Consider splitting."
           fi
         displayName: "Plan summary table"
         condition: succeededOrFailed()
@@ -114,7 +107,7 @@ jobs:
       - ${{ if eq(parameters.publish_binary_plan, true) }}:
         - publish: $(Build.ArtifactStagingDirectory)/${{ parameters.environment }}.tfplan
           artifact: ${{ parameters.region }}-${{ parameters.environment }}-plan
-          displayName: "Publish plan artifact (sensitive - contains secrets)"
+          displayName: "Publish plan artifact (sensitive)"
 
       - publish: $(Build.ArtifactStagingDirectory)/plan-summary.txt
         artifact: ${{ parameters.region }}-${{ parameters.environment }}-plan-summary

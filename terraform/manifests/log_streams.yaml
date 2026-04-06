@@ -1,0 +1,17 @@
+# Auth0 log stream definitions for platform ops.
+# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/log_stream
+#
+# No log streams configured yet. Add entries as needed.
+# Example:
+#
+# log_streams:
+#   datadog-logs:
+#     name: "Datadog Log Stream"
+#     type: "datadog"
+#     status: "active"
+#     environments: [dev, qa, val, prod]
+#     sink_static:
+#       datadog_region: "us"
+#     sink_secrets:
+#       datadog_api_key: "DATADOG_API_KEY"
+log_streams: {}

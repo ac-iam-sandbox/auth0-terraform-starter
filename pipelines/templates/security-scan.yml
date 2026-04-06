@@ -1,6 +1,3 @@
-# This pipeline template defines security scanning and validation jobs for Terraform code.
-# It includes Checkov for security scanning, tflint for linting, JavaScript syntax
-
 jobs:
   - job: checkov
     displayName: "Checkov security scan"
@@ -35,22 +32,6 @@ jobs:
           tflint --init || true
           tflint --recursive --format compact
         displayName: "Run tflint"
-
-  - job: js_lint
-    displayName: "Action code validation"
-    steps:
-      - script: |
-          echo "Checking JavaScript syntax..."
-          errors=0
-          for f in $(find $(Build.SourcesDirectory)/terraform/actions $(Build.SourcesDirectory)/terraform/action_modules -name "*.js" 2>/dev/null); do
-            node --check "$f" 2>&1 || errors=$((errors + 1))
-          done
-          if [ $errors -gt 0 ]; then
-            echo "##[error]$errors JavaScript file(s) have syntax errors"
-            exit 1
-          fi
-          echo "All JavaScript files passed syntax check"
-        displayName: "Validate JS syntax"
 
   - job: manifest_validation
     displayName: "Manifest validation"

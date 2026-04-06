@@ -1,5 +1,3 @@
-# Posts a summary of dev and qa plans as a PR comment.
-
 parameters:
   - name: region
     type: string
@@ -68,7 +66,7 @@ jobs:
           DEV_DETAILS=$(build_details "dev")
           QA_DETAILS=$(build_details "qa")
 
-          COMMENT_BODY="## Terraform Plan Summary\\n\\n"
+          COMMENT_BODY="## Platform Ops - Terraform Plan Summary\\n\\n"
           COMMENT_BODY+="| Environment | Result |\\n"
           COMMENT_BODY+="|-------------|--------|\\n"
           COMMENT_BODY+="| **dev** | ${DEV_SUMMARY} |\\n"
@@ -106,7 +104,7 @@ jobs:
           if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
             echo "Plan summary posted to PR #${PR_ID}"
           else
-            echo "##[warning]Failed to post PR comment (HTTP ${HTTP_CODE}). Ensure Build Service has 'Contribute to pull requests' permission."
+            echo "##[warning]Failed to post PR comment (HTTP ${HTTP_CODE})."
             cat /tmp/pr-comment-response.txt
           fi
         displayName: "Post plan summary to PR"

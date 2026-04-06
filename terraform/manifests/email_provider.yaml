@@ -1,0 +1,18 @@
+# Auth0 email provider configuration
+
+email_provider:
+  name: "ses"
+  enabled: true
+  default_from_address: "PLACEHOLDER_DEFAULT_FROM_ADDRESS"
+
+  # Non-secret SES config - region is env-specific, set in env YAML.
+  credentials_static: {}
+
+  # Secret fields - pipeline variable group names mapped to credential fields.
+  credentials_secrets:
+    access_key_id: "SES_ACCESS_KEY_ID"
+    secret_access_key: "SES_SECRET_ACCESS_KEY"
+
+  settings:
+    message:
+      view_content_link: true

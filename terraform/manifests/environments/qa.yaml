@@ -1,25 +1,13 @@
-# qa environment configuration.
+# QA environment configuration.
 
 tenant:
-  auth0_domain: "REPLACE_WITH_qa_DOMAIN"
+  auth0_domain: "PLACEHOLDER_QA_DOMAIN"
   region: "na"
+  friendly_name: "Axon CIC Platform (QA)"
+  support_email: "PLACEHOLDER_SUPPORT_EMAIL"
+  support_url: "PLACEHOLDER_SUPPORT_URL"
 
-clients:
-  marlo:
-    callbacks:   ["https://qa.marlo.example.com/callback"]
-    logout_urls: ["https://qa.marlo.example.com"]
-    web_origins: ["https://qa.marlo.example.com"]
-
-vault_connections:
-  auth0-m2m:
-    domain:    "REPLACE_WITH_qa_DOMAIN"
-    client_id: "REPLACE_WITH_qa_VAULT_CLIENT_ID"
-
-action_modules:
-  account-linking:
-    MANAGEMENT_API_DOMAIN:    "REPLACE_WITH_qa_DOMAIN"
-    MANAGEMENT_API_CLIENT_ID: "REPLACE_WITH_qa_MGMT_CLIENT_ID"
-
-actions:
-  enrich-signup-profile:
-    API_BASE_URL: "REPLACE_WITH_qa_API_URL"
+email_provider:
+  default_from_address: "PLACEHOLDER_QA_FROM_ADDRESS"
+  credentials:
+    region: "us-east-1"

@@ -1,42 +1,13 @@
 # Dev environment configuration.
-# Nested by resource type - mirrors manifest structure.
 
 tenant:
   auth0_domain: "na-dev-axon-cic.us.auth0.com"
   region: "na"
+  friendly_name: "Axon CIC Platform (Dev)"
+  support_email: "PLACEHOLDER_SUPPORT_EMAIL"
+  support_url: "PLACEHOLDER_SUPPORT_URL"
 
-# Client env-specific values keyed by client manifest key.
-# Only clients that need env-specific values appear here.
-# M2M clients with no callbacks/URLs don't need entries.
-clients:
-  marlo:
-    callbacks:   ["https://dev.marlo.example.com/callback"]
-    logout_urls: ["https://dev.marlo.example.com"]
-    web_origins: ["https://dev.marlo.example.com"]
-
-# Vault connection config keyed by vault manifest key.
-vault_connections:
-  auth0-m2m:
-    domain:    "na-dev-axon-cic.us.auth0.com"
-    client_id: "qvFfk2E8XgVB0GFMVG8bIeBi5UAvIJoy"
-
-# Action module config keyed by module manifest key.
-action_modules:
-  account-linking:
-    MANAGEMENT_API_DOMAIN:    "na-dev-axon-cic.us.auth0.com"
-    MANAGEMENT_API_CLIENT_ID: "7d0qY6YcztsnqgjCPHQyGcS7QEVOV1xe"
-
-# Action config keyed by action manifest key.
-actions:
-  enrich-signup-profile:
-    API_BASE_URL: "https://dev2.nonprod-store.myalcon.com"
-  enforce-email-verification:
-    FORM_ID: "REPLACE_WITH_dev_EMAIL_VERIFICATION_FORM_ID"
-  complete-social-profile:
-    API_BASE_URL: "https://dev2.nonprod-store.myalcon.com"
-    PROFILE_FORM_ID: "REPLACE_WITH_dev_PROFILE_FORM_ID"
-    LINKING_FORM_ID: "REPLACE_WITH_dev_LINKING_FORM_ID"
-  link-accounts:
-    LINKING_FORM_ID: "REPLACE_WITH_dev_LINKING_FORM_ID"
-  post-account-linking:
-    LINKING_SUCCESS_FORM_ID: "REPLACE_WITH_dev_LINKING_SUCCESS_FORM_ID"
+email_provider:
+  default_from_address: "PLACEHOLDER_DEV_FROM_ADDRESS"
+  credentials:
+    region: "us-east-1"

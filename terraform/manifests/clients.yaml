@@ -1,61 +1,42 @@
-# Auth0 Client Applications
-# Each client application is defined with its name, description, type, environments, OIDC conformance, grant types, JWT algorithm, and refresh token settings (if applicable).
+# Auth0 M2M client definitions 
+
 clients:
-  auth0-actions:
+  branded-ui-service:
+    name: "Manage Branded UI Service App"
+    description: "M2M app for external management of branding, universal login, and UI customization"
+    environments: [dev, qa, val, prod]
+    oidc_conformant: true
+    is_first_party: true
+    jwt_alg: "RS256"
+
+  auth0-actions-service:
     name: "Auth0 Actions Service"
     description: "M2M app for action-based user lookups and account linking"
-    app_type: "non_interactive"
     environments: [dev, qa, val, prod]
     oidc_conformant: true
-    grant_types: ["client_credentials"]
+    is_first_party: true
     jwt_alg: "RS256"
 
-  auth0-vault:
+  auth0-vault-service:
     name: "Auth0 Vault Service"
-    description: "M2M app for vault connections — email provider config, user password and profile updates"
-    app_type: "non_interactive"
+    description: "M2M app for vault connections - email provider config, user password and profile updates"
     environments: [dev, qa, val, prod]
     oidc_conformant: true
-    grant_types: ["client_credentials"]
-    jwt_alg: "RS256"
-
-  branded-ui-service:
-    name: "Branded UI Service"
-    description: "M2M app for external management of branding, universal login, and UI customization"
-    app_type: "non_interactive"
-    environments: [dev, qa, val, prod]
-    oidc_conformant: true
-    grant_types: ["client_credentials"]
+    is_first_party: true
     jwt_alg: "RS256"
 
   email-template-service:
     name: "Email Template Service"
     description: "M2M app for managing email templates"
-    app_type: "non_interactive"
     environments: [dev, qa, val, prod]
     oidc_conformant: true
-    grant_types: ["client_credentials"]
+    is_first_party: true
     jwt_alg: "RS256"
 
-  marlo:
-    name: "Marlo"
-    description: "Single page application for the Marlo frontend"
-    app_type: "spa"
-    environments: [dev, qa, val, prod]
-    oidc_conformant: true
-    grant_types: ["authorization_code", "refresh_token"]
-    jwt_alg: "RS256"
-    refresh_token:
-      rotation_type: "rotating"
-      expiration_type: "expiring"
-      token_lifetime: 2592000
-      idle_token_lifetime: 1296000
-
-  mulesoft:
-    name: "MuleSoft Integration"
+  mulesoft-service:
+    name: "MuleSoft Service"
     description: "M2M app for proxying Management API calls from MuleSoft for user updates"
-    app_type: "non_interactive"
     environments: [dev, qa, val, prod]
     oidc_conformant: true
-    grant_types: ["client_credentials"]
+    is_first_party: true
     jwt_alg: "RS256"

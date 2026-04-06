@@ -3,12 +3,12 @@ output "client_ids" {
   value       = module.clients.client_map
 }
 
-output "action_ids" {
-  description = "Map of action key to Auth0 action ID"
-  value       = module.actions.action_map
+output "client_grant_ids" {
+  description = "Map of grant key to Auth0 client grant ID"
+  value       = module.client_grants.grant_map
 }
 
-output "flow_ids" {
-  description = "Map of flow key to Auth0 flow ID"
-  value       = module.flows.flow_map
+output "log_stream_ids" {
+  description = "Map of log stream key to Auth0 log stream ID"
+  value       = module.log_streams.stream_map
 }
