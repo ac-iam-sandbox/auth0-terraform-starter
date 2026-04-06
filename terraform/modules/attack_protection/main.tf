@@ -1,4 +1,8 @@
-# Attack Protection
+# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/attack_protection
+#
+# Singleton resource — one per tenant. Config from YAML manifest + env overrides.
+# Manages brute force protection, breached password detection,
+# suspicious IP throttling, bot detection, and CAPTCHA.
 
 locals {
   def = var.definition

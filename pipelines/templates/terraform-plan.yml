@@ -1,9 +1,8 @@
 parameters:
-  - name: environment
-    type: string
   - name: region
     type: string
-    default: "na"
+  - name: environment
+    type: string
   - name: publish_binary_plan
     type: boolean
     default: true
@@ -14,14 +13,16 @@ jobs:
     steps:
       - template: terraform-init.yml
         parameters:
+          region: ${{ parameters.region }}
           environment: ${{ parameters.environment }}
 
       - script: |
           set -o pipefail
           cd $(Build.SourcesDirectory)/terraform
           terraform plan \
+            -var="region=${{ parameters.region }}" \
             -var="environment=${{ parameters.environment }}" \
-            -out=$(Build.ArtifactStagingDirectory)/${{ parameters.environment }}.tfplan \
+            -out=$(Build.ArtifactStagingDirectory)/${{ parameters.region }}-${{ parameters.environment }}.tfplan \
             -input=false \
             2>&1 | tee $(Build.ArtifactStagingDirectory)/plan-output.log
         displayName: "Terraform plan"
@@ -41,8 +42,7 @@ jobs:
       - script: |
           LOG="$(Build.ArtifactStagingDirectory)/plan-output.log"
           if grep -qiE '429|rate.limit|too many requests|throttl' "$LOG" 2>/dev/null; then
-            echo "##[warning]Auth0 rate limiting detected during plan (${{ parameters.environment }})."
-            grep -ciE '429|rate.limit|too many requests|throttl' "$LOG" | xargs -I{} echo "  {} occurrence(s) found"
+            echo "##[warning]Auth0 rate limiting detected (${{ parameters.region }}-${{ parameters.environment }})."
           else
             echo "No rate limiting detected."
           fi
@@ -51,7 +51,8 @@ jobs:
 
       - script: |
           cd $(Build.SourcesDirectory)/terraform
-          terraform show -no-color $(Build.ArtifactStagingDirectory)/${{ parameters.environment }}.tfplan \
+          terraform show -no-color \
+            $(Build.ArtifactStagingDirectory)/${{ parameters.region }}-${{ parameters.environment }}.tfplan \
             > $(Build.ArtifactStagingDirectory)/plan-summary.txt
         displayName: "Generate plan summary"
         env:
@@ -62,17 +63,17 @@ jobs:
       - script: |
           #!/bin/bash
           SUMMARY="$(Build.ArtifactStagingDirectory)/plan-summary.txt"
-          ENV="${{ parameters.environment }}"
+          LABEL="${{ parameters.region }}-${{ parameters.environment }}"
 
           echo ""
           echo "============================================================"
-          echo " Plan Summary: ${ENV}"
+          echo " Plan Summary: ${LABEL}"
           echo "============================================================"
 
           PLAN_LINE=$(grep -E '^Plan:|^No changes' "$SUMMARY" 2>/dev/null | tail -1)
 
           if echo "$PLAN_LINE" | grep -q "No changes"; then
-            echo " Result: No changes. Infrastructure matches configuration."
+            echo " Result: No changes."
             echo "============================================================"
             exit 0
           fi
@@ -81,31 +82,26 @@ jobs:
           CHG=$(echo "$PLAN_LINE" | grep -oP '\d+ to change' | grep -oP '\d+' || echo "0")
           DEL=$(echo "$PLAN_LINE" | grep -oP '\d+ to destroy' | grep -oP '\d+' || echo "0")
 
-          printf " %-12s %-8s\n" "Metric" "Count"
-          printf " %-12s %-8s\n" "----------" "-----"
           printf " %-12s %-8s\n" "Add" "${ADD:-0}"
           printf " %-12s %-8s\n" "Change" "${CHG:-0}"
           printf " %-12s %-8s\n" "Destroy" "${DEL:-0}"
-          echo ""
 
+          echo ""
           echo " Changes by module:"
           grep -E '^\s+#' "$SUMMARY" 2>/dev/null | sed 's/^[[:space:]]*/  /' | head -30
-
-          echo ""
           echo "============================================================"
 
           if [ "${DEL:-0}" -gt 0 ]; then
-            echo "##[warning]Plan includes ${DEL} resource DESTRUCTION(s) in ${ENV}. Review carefully."
+            echo "##[warning]Plan includes ${DEL} DESTRUCTION(s) in ${LABEL}."
           fi
-
-          if [ "${ENV}" = "prod" ] && [ "$((${ADD:-0} + ${CHG:-0} + ${DEL:-0}))" -gt 10 ]; then
+          if [ "${{ parameters.environment }}" = "prod" ] && [ "$((${ADD:-0} + ${CHG:-0} + ${DEL:-0}))" -gt 10 ]; then
             echo "##[warning]Large change set targeting prod. Consider splitting."
           fi
         displayName: "Plan summary table"
         condition: succeededOrFailed()
 
       - ${{ if eq(parameters.publish_binary_plan, true) }}:
-        - publish: $(Build.ArtifactStagingDirectory)/${{ parameters.environment }}.tfplan
+        - publish: $(Build.ArtifactStagingDirectory)/${{ parameters.region }}-${{ parameters.environment }}.tfplan
           artifact: ${{ parameters.region }}-${{ parameters.environment }}-plan
           displayName: "Publish plan artifact (sensitive)"
 

@@ -1,7 +1,7 @@
 # Auth0 attack protection configuration.
 # https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/attack_protection
 #
-# Singleton resource - one per tenant. Applied to all environments.
+# Singleton resource — one per tenant. Applied to all environments.
 attack_protection:
   brute_force_protection:
     enabled: true
@@ -31,7 +31,7 @@ attack_protection:
     pre_change_password:
       shields: ["admin_notification", "block"]
 
-  # Bot detection
+  # Bot detection — uncomment and configure when ready.
   # bot_detection:
   #   bot_detection_level: "medium"
   #   challenge_password_policy: "when_risky"
@@ -40,6 +40,9 @@ attack_protection:
   #   allowlist: []
   #   monitoring_mode_enabled: false
 
+  # CAPTCHA — uncomment and configure when ready.
+  # Secrets (site_key, secret) should be added to pipeline variable group
+  # and wired through TF_VAR_secrets_json.
   # captcha:
   #   active_provider_id: "recaptcha_v2"
   #   recaptcha_v2:

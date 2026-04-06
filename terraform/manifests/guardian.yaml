@@ -1,12 +1,15 @@
-# Auth0 Guardian MFA configuration
-
+# Auth0 Guardian MFA configuration.
+# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/guardian
+#
+# Singleton resource — configures MFA for the tenant.
+# Policy: never — MFA is handled via Actions, not at the tenant level.
 guardian:
   policy: "never"
   otp: true
   email: true
   recovery_code: false
 
-  # All other factors disabled at the moment
+  # All other factors disabled per current tenant config.
   # Uncomment and configure as needed:
   # phone:
   #   enabled: false

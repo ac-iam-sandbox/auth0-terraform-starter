@@ -1,10 +1,21 @@
-# Auth0 M2M client definitions 
-
+# Auth0 M2M client definitions for platform ops.
+# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/client
+#
+# Filtering:
+#   environments: Required — which envs this client exists in.
+#   regions:      Optional — which regions this client exists in.
+#                 Omit to deploy to ALL regions.
+#
+# Examples:
+#   All regions, all envs:     environments: [dev, qa, val, prod]   (no regions key)
+#   APAC only:                 environments: [dev, qa, val, prod]   regions: [apac]
+#   NA + EU, dev only:         environments: [dev]                  regions: [na, eu]
 clients:
   branded-ui-service:
     name: "Manage Branded UI Service App"
     description: "M2M app for external management of branding, universal login, and UI customization"
     environments: [dev, qa, val, prod]
+    # regions: omitted — exists in all regions
     oidc_conformant: true
     is_first_party: true
     jwt_alg: "RS256"
@@ -19,7 +30,7 @@ clients:
 
   auth0-vault-service:
     name: "Auth0 Vault Service"
-    description: "M2M app for vault connections - email provider config, user password and profile updates"
+    description: "M2M app for vault connections — email provider config, user password and profile updates"
     environments: [dev, qa, val, prod]
     oidc_conformant: true
     is_first_party: true

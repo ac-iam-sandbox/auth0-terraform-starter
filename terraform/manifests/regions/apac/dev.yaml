@@ -1,0 +1,13 @@
+# APAC dev environment configuration.
+
+tenant:
+  auth0_domain: "apac-dev-axon-cic.jp.auth0.com"
+  region: "apac"
+  friendly_name: "Axon CIC Platform APAC (Dev)"
+  support_email: "PLACEHOLDER_SUPPORT_EMAIL"
+  support_url: "PLACEHOLDER_SUPPORT_URL"
+
+email_provider:
+  default_from_address: "PLACEHOLDER_APAC_DEV_FROM_ADDRESS"
+  credentials:
+    region: "ap-northeast-1"

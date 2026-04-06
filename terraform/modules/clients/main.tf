@@ -1,10 +1,15 @@
-# M2M application definitions enforced
+# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/client
+#
+# M2M-only clients. Filtered by both "environments" and optional "regions".
+# Omitting "regions" means the client exists in all regions.
 
 locals {
-  # Filter clients by environments list.
   active_clients = {
     for k, v in var.definitions : k => v
-    if contains(v.environments, var.environment)
+    if(
+      contains(v.environments, var.environment) &&
+      (lookup(v, "regions", null) == null || contains(v.regions, var.region))
+    )
   }
 }
 
@@ -20,7 +25,6 @@ resource "auth0_client" "this" {
 
   grant_types = ["client_credentials"]
 
-  # Client metadata (map of string, max 10 properties).
   client_metadata = lookup(each.value, "client_metadata", null)
 
   jwt_configuration {
@@ -28,7 +32,6 @@ resource "auth0_client" "this" {
     lifetime_in_seconds = lookup(each.value, "jwt_lifetime_in_seconds", null)
   }
 
-  # Token quota for rate limiting M2M token issuance.
   dynamic "token_quota" {
     for_each = lookup(each.value, "token_quota", null) != null ? [each.value.token_quota] : []
     content {

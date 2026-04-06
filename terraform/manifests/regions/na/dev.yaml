@@ -1,4 +1,4 @@
-# Dev environment configuration.
+# NA dev environment configuration.
 
 tenant:
   auth0_domain: "na-dev-axon-cic.us.auth0.com"
@@ -8,6 +8,6 @@ tenant:
   support_url: "PLACEHOLDER_SUPPORT_URL"
 
 email_provider:
-  default_from_address: "PLACEHOLDER_DEV_FROM_ADDRESS"
+  default_from_address: "PLACEHOLDER_NA_DEV_FROM_ADDRESS"
   credentials:
     region: "us-east-1"

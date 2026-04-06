@@ -1,5 +1,8 @@
-# Auth0 tenant settings
-
+# Auth0 tenant settings.
+# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/tenant
+#
+# Singleton resource — manages existing tenant created through dashboard.
+# Env-specific values (friendly_name, support_email, etc.) in environments/{env}.yaml.
 tenant:
   friendly_name: "Axon CIC Platform"
   enabled_locales: ["en"]

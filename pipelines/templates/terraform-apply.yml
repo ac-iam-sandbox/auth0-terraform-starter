@@ -1,9 +1,8 @@
 parameters:
-  - name: environment
-    type: string
   - name: region
     type: string
-    default: "na"
+  - name: environment
+    type: string
 
 jobs:
   - deployment: apply
@@ -17,6 +16,7 @@ jobs:
 
             - template: terraform-init.yml
               parameters:
+                region: ${{ parameters.region }}
                 environment: ${{ parameters.environment }}
 
             - download: current
@@ -26,7 +26,7 @@ jobs:
                 cd $(Build.SourcesDirectory)/terraform
                 terraform apply \
                   -input=false \
-                  $(Pipeline.Workspace)/${{ parameters.region }}-${{ parameters.environment }}-plan/${{ parameters.environment }}.tfplan \
+                  $(Pipeline.Workspace)/${{ parameters.region }}-${{ parameters.environment }}-plan/${{ parameters.region }}-${{ parameters.environment }}.tfplan \
                   2>&1 | tee $(Build.ArtifactStagingDirectory)/apply-output.txt
               displayName: "Terraform apply"
               env:

@@ -1,4 +1,12 @@
-# Email provider
+# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/email_provider
+#
+# Singleton resource — max 1 email provider per tenant.
+# Supported providers: ses, sendgrid, smtp, azure_cs, ms365, mandrill, sparkpost, mailgun, custom.
+#
+# Required: name, default_from_address, credentials.
+# credentials_static: non-secret values (e.g., smtp_host, region)
+# credentials_secrets: map of credential field → pipeline secret name
+# Env-specific values (e.g., default_from_address) go in env YAML.
 
 locals {
   def = var.definition

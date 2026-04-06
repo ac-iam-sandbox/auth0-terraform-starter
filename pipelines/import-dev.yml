@@ -1,16 +1,28 @@
-# ONE-TIME import pipeline for bootstrapping existing Auth0 resources into Terraform state.
-# Pipeline name in Azure DevOps: "Platform Ops - Import Dev (one-time)"
-#
-# Where to find IDs:
-#   Clients:           Dashboard → Applications → click app → Settings → Client ID
-#   Client grants:     Dashboard → Applications → APIs → Expand the API → grant ID
-#   Singletons:        Import using a random string (tenant, attack_protection, guardian, email_provider)
+# ONE-TIME import pipeline for bootstrapping existing Auth0 resources.
+# Pipeline name in Azure DevOps: "Platform Ops - Import (one-time)"
 trigger: none
 
 parameters:
-  # Singletons (import with random string)
+  - name: region
+    displayName: "Region"
+    type: string
+    values:
+      - na
+      - apac
+      - eu
+  - name: environment
+    displayName: "Environment"
+    type: string
+    default: "dev"
+    values:
+      - dev
+      - qa
+      - val
+      - prod
+
+  # ── Singletons ──
   - name: import_tenant
-    displayName: "Import tenant settings?"
+    displayName: "Import tenant?"
     type: boolean
     default: true
   - name: import_attack_protection
@@ -26,23 +38,47 @@ parameters:
     type: boolean
     default: true
 
-  # Clients
-  - name: client_email_template_service
-    displayName: "Client ID: email-template-service"
-    type: string
-    default: "SKIP"
+  # ── Clients ──
   - name: client_branded_ui_service
     displayName: "Client ID: branded-ui-service"
     type: string
     default: "SKIP"
+  - name: client_auth0_actions_service
+    displayName: "Client ID: auth0-actions-service"
+    type: string
+    default: "SKIP"
+  - name: client_auth0_vault_service
+    displayName: "Client ID: auth0-vault-service"
+    type: string
+    default: "SKIP"
+  - name: client_email_template_service
+    displayName: "Client ID: email-template-service"
+    type: string
+    default: "SKIP"
+  - name: client_mulesoft_service
+    displayName: "Client ID: mulesoft-service"
+    type: string
+    default: "SKIP"
 
-  # Client grants
-  - name: grant_email_template_service_mgmt_api
+  # ── Client grants ──
+  - name: grant_branded_ui_service
+    displayName: "Grant ID: branded-ui-service-mgmt-api"
+    type: string
+    default: "SKIP"
+  - name: grant_auth0_actions_service
+    displayName: "Grant ID: auth0-actions-service-mgmt-api"
+    type: string
+    default: "SKIP"
+  - name: grant_auth0_vault_service
+    displayName: "Grant ID: auth0-vault-service-mgmt-api"
+    type: string
+    default: "SKIP"
+  - name: grant_email_template_service
     displayName: "Grant ID: email-template-service-mgmt-api"
     type: string
     default: "SKIP"
-  - name: grant_branded_ui_service_mgmt_api
-    displayName: "Grant ID: branded-ui-service-mgmt-api"
+  - name: grant_mulesoft_service
+    displayName: "Grant ID: mulesoft-service-mgmt-api"
     type: string
     default: "SKIP"
 
@@ -50,108 +86,85 @@ pool:
   vmImage: "ubuntu-latest"
 
 variables:
-  - group: na-dev-axon-platform-ops
+  - group: ${{ parameters.region }}-${{ parameters.environment }}-axon-platform-ops
 
 stages:
   - stage: import
-    displayName: "Import existing resources"
+    displayName: "Import (${{ parameters.region }}-${{ parameters.environment }})"
     jobs:
       - job: terraform_import
         displayName: "Import into Terraform state"
         steps:
           - template: templates/terraform-init.yml
             parameters:
-              environment: dev
+              region: ${{ parameters.region }}
+              environment: ${{ parameters.environment }}
 
           - script: |
               #!/bin/bash
               set -euo pipefail
               cd $(Build.SourcesDirectory)/terraform
 
-              imported=0
-              skipped=0
-              failed=0
+              imported=0; skipped=0; failed=0
 
               import_resource() {
-                local address="$1"
-                local id="$2"
-                local label="$3"
-
+                local address="$1" id="$2" label="$3"
                 if [ "$id" = "SKIP" ]; then
-                  echo "⏭  SKIP: $label"
-                  skipped=$((skipped + 1))
-                  return
+                  echo "⏭  SKIP: $label"; skipped=$((skipped + 1)); return
                 fi
-
-                echo ""
-                echo "━━━ Importing: $label ━━━"
-                echo "  Address: $address"
-                echo "  ID:      $id"
-
+                echo ""; echo "━━━ Importing: $label ━━━"
                 if terraform import \
-                  -var="environment=dev" \
+                  -var="region=${{ parameters.region }}" \
+                  -var="environment=${{ parameters.environment }}" \
                   "$address" "$id" 2>&1; then
-                  echo "  ✓ Imported successfully"
-                  imported=$((imported + 1))
+                  echo "  ✓ Imported"; imported=$((imported + 1))
                 else
-                  echo "##[warning]  ✗ Import failed for $label ($id)"
-                  failed=$((failed + 1))
+                  echo "##[warning]  ✗ Failed: $label"; failed=$((failed + 1))
                 fi
               }
 
               echo "╔══════════════════════════════════════════════════╗"
-              echo "║  Platform Ops Dev Import                        ║"
+              echo "║  Import: ${{ parameters.region }}-${{ parameters.environment }}"
               echo "╚══════════════════════════════════════════════════╝"
-              echo ""
 
               # Singletons
-              echo "── Singleton resources"
-              if [ "${{ parameters.import_tenant }}" = "True" ]; then
-                import_resource 'module.tenant.auth0_tenant.this' \
-                  "existing-tenant" "tenant"
-              fi
-              if [ "${{ parameters.import_attack_protection }}" = "True" ]; then
-                import_resource 'module.attack_protection.auth0_attack_protection.this' \
-                  "existing-attack-protection" "attack_protection"
-              fi
-              if [ "${{ parameters.import_email_provider }}" = "True" ]; then
-                import_resource 'module.email_provider.auth0_email_provider.this' \
-                  "existing-email-provider" "email_provider"
-              fi
-              if [ "${{ parameters.import_guardian }}" = "True" ]; then
-                import_resource 'module.guardian.auth0_guardian.this' \
-                  "existing-guardian" "guardian"
-              fi
+              [ "${{ parameters.import_tenant }}" = "True" ] && \
+                import_resource 'module.tenant.auth0_tenant.this' "existing" "tenant"
+              [ "${{ parameters.import_attack_protection }}" = "True" ] && \
+                import_resource 'module.attack_protection.auth0_attack_protection.this' "existing" "attack_protection"
+              [ "${{ parameters.import_email_provider }}" = "True" ] && \
+                import_resource 'module.email_provider.auth0_email_provider.this' "existing" "email_provider"
+              [ "${{ parameters.import_guardian }}" = "True" ] && \
+                import_resource 'module.guardian.auth0_guardian.this' "existing" "guardian"
 
               # Clients
-              echo ""
-              echo "── Clients"
-              import_resource 'module.clients.auth0_client.this["email-template-service"]' \
-                "${{ parameters.client_email_template_service }}" "email-template-service"
               import_resource 'module.clients.auth0_client.this["branded-ui-service"]' \
                 "${{ parameters.client_branded_ui_service }}" "branded-ui-service"
+              import_resource 'module.clients.auth0_client.this["auth0-actions-service"]' \
+                "${{ parameters.client_auth0_actions_service }}" "auth0-actions-service"
+              import_resource 'module.clients.auth0_client.this["auth0-vault-service"]' \
+                "${{ parameters.client_auth0_vault_service }}" "auth0-vault-service"
+              import_resource 'module.clients.auth0_client.this["email-template-service"]' \
+                "${{ parameters.client_email_template_service }}" "email-template-service"
+              import_resource 'module.clients.auth0_client.this["mulesoft-service"]' \
+                "${{ parameters.client_mulesoft_service }}" "mulesoft-service"
 
               # Client grants
-              echo ""
-              echo "── Client grants"
-              import_resource 'module.client_grants.auth0_client_grant.this["email-template-service-mgmt-api"]' \
-                "${{ parameters.grant_email_template_service_mgmt_api }}" "email-template-service-mgmt-api"
               import_resource 'module.client_grants.auth0_client_grant.this["branded-ui-service-mgmt-api"]' \
-                "${{ parameters.grant_branded_ui_service_mgmt_api }}" "branded-ui-service-mgmt-api"
+                "${{ parameters.grant_branded_ui_service }}" "branded-ui-service-mgmt-api"
+              import_resource 'module.client_grants.auth0_client_grant.this["auth0-actions-service-mgmt-api"]' \
+                "${{ parameters.grant_auth0_actions_service }}" "auth0-actions-service-mgmt-api"
+              import_resource 'module.client_grants.auth0_client_grant.this["auth0-vault-service-mgmt-api"]' \
+                "${{ parameters.grant_auth0_vault_service }}" "auth0-vault-service-mgmt-api"
+              import_resource 'module.client_grants.auth0_client_grant.this["email-template-service-mgmt-api"]' \
+                "${{ parameters.grant_email_template_service }}" "email-template-service-mgmt-api"
+              import_resource 'module.client_grants.auth0_client_grant.this["mulesoft-service-mgmt-api"]' \
+                "${{ parameters.grant_mulesoft_service }}" "mulesoft-service-mgmt-api"
 
               # Summary
               echo ""
-              echo "╔══════════════════════════════════════════════════╗"
-              echo "║  Import Summary                                 ║"
-              echo "╠══════════════════════════════════════════════════╣"
-              printf "║  Imported: %-38s║\n" "$imported"
-              printf "║  Skipped:  %-38s║\n" "$skipped"
-              printf "║  Failed:   %-38s║\n" "$failed"
-              echo "╚══════════════════════════════════════════════════╝"
-
-              if [ "$failed" -gt 0 ]; then
-                echo "##[warning]$failed import(s) failed. Review the output above."
-              fi
+              printf "Imported: %d | Skipped: %d | Failed: %d\n" "$imported" "$skipped" "$failed"
+              [ "$failed" -gt 0 ] && echo "##[warning]${failed} import(s) failed."
             displayName: "Import resources"
             env:
               AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
@@ -172,6 +185,6 @@ stages:
     jobs:
       - template: templates/terraform-plan.yml
         parameters:
-          environment: dev
-          region: na
+          region: ${{ parameters.region }}
+          environment: ${{ parameters.environment }}
           publish_binary_plan: false

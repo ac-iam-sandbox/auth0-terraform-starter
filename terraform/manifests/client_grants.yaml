@@ -1,5 +1,8 @@
-# Auth0 client grant definitions 
-
+# Auth0 client grant definitions for platform ops.
+# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/client_grant
+#
+# Audience auto-resolves to Management API when omitted.
+# "regions" filter: omit to deploy to all regions.
 client_grants:
   branded-ui-service-mgmt-api:
     client_key: "branded-ui-service"

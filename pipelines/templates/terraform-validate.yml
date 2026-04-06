@@ -1,4 +1,6 @@
 parameters:
+  - name: region
+    type: string
   - name: environment
     type: string
 
@@ -8,6 +10,7 @@ jobs:
     steps:
       - template: terraform-init.yml
         parameters:
+          region: ${{ parameters.region }}
           environment: ${{ parameters.environment }}
 
       - script: |

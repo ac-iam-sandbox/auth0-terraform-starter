@@ -1,5 +1,9 @@
 # Auto-triggers plan on merge to master. Apply requires approval.
 # Pipeline name in Azure DevOps: "Platform Ops - Deploy Dev"
+#
+# Runs for a single region. Create one pipeline instance per region,
+# each referencing the same YAML but with a different default region,
+# OR use a single pipeline that deploys all regions in parallel stages.
 trigger:
   branches:
     include:
@@ -8,11 +12,21 @@ trigger:
     include:
       - terraform/**
 
+parameters:
+  - name: region
+    displayName: "Region"
+    type: string
+    default: "na"
+    values:
+      - na
+      - apac
+      - eu
+
 pool:
   vmImage: "ubuntu-latest"
 
 variables:
-  - group: na-dev-axon-platform-ops
+  - group: ${{ parameters.region }}-dev-axon-platform-ops
 
 stages:
   - stage: security_and_quality
@@ -26,22 +40,23 @@ stages:
     jobs:
       - template: templates/terraform-validate.yml
         parameters:
+          region: ${{ parameters.region }}
           environment: dev
 
   - stage: terraform_plan
-    displayName: "Terraform plan (dev)"
+    displayName: "Terraform plan (${{ parameters.region }}-dev)"
     dependsOn: terraform_validation
     jobs:
       - template: templates/terraform-plan.yml
         parameters:
+          region: ${{ parameters.region }}
           environment: dev
-          region: na
 
   - stage: terraform_apply
-    displayName: "Terraform apply (dev)"
+    displayName: "Terraform apply (${{ parameters.region }}-dev)"
     dependsOn: terraform_plan
     jobs:
       - template: templates/terraform-apply.yml
         parameters:
+          region: ${{ parameters.region }}
           environment: dev
-          region: na

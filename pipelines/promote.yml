@@ -1,8 +1,15 @@
-# Manual trigger to promote to qa, val, or prod.
+# Manual trigger to promote to qa, val, or prod in any region.
 # Pipeline name in Azure DevOps: "Platform Ops - Promote"
 trigger: none
 
 parameters:
+  - name: region
+    displayName: "Region"
+    type: string
+    values:
+      - na
+      - apac
+      - eu
   - name: target_environment
     displayName: "Target environment"
     type: string
@@ -10,12 +17,6 @@ parameters:
       - qa
       - val
       - prod
-  - name: region
-    displayName: "Region"
-    type: string
-    default: "na"
-    values:
-      - na
 
 pool:
   vmImage: "ubuntu-latest"
@@ -35,22 +36,23 @@ stages:
     jobs:
       - template: templates/terraform-validate.yml
         parameters:
+          region: ${{ parameters.region }}
           environment: ${{ parameters.target_environment }}
 
   - stage: terraform_plan
-    displayName: "Terraform plan (${{ parameters.region }}-${{ parameters.target_environment }})"
+    displayName: "Plan (${{ parameters.region }}-${{ parameters.target_environment }})"
     dependsOn: terraform_validation
     jobs:
       - template: templates/terraform-plan.yml
         parameters:
-          environment: ${{ parameters.target_environment }}
           region: ${{ parameters.region }}
+          environment: ${{ parameters.target_environment }}
 
   - stage: terraform_apply
-    displayName: "Terraform apply (${{ parameters.region }}-${{ parameters.target_environment }})"
+    displayName: "Apply (${{ parameters.region }}-${{ parameters.target_environment }})"
     dependsOn: terraform_plan
     jobs:
       - template: templates/terraform-apply.yml
         parameters:
-          environment: ${{ parameters.target_environment }}
           region: ${{ parameters.region }}
+          environment: ${{ parameters.target_environment }}

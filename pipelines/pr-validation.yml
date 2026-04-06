@@ -1,4 +1,4 @@
-# Runs on pull requests: security scan + validate + plan dev and qa.
+# Runs on pull requests: security scan + validate + plan dev and qa for selected region.
 # Pipeline name in Azure DevOps: "Platform Ops - PR Validation"
 trigger: none
 
@@ -9,6 +9,16 @@ pr:
   paths:
     include:
       - terraform/**
+
+parameters:
+  - name: region
+    displayName: "Region to validate"
+    type: string
+    default: "na"
+    values:
+      - na
+      - apac
+      - eu
 
 pool:
   vmImage: "ubuntu-latest"
@@ -23,34 +33,35 @@ stages:
     displayName: "Terraform validation"
     dependsOn: security_and_quality
     variables:
-      - group: na-dev-axon-platform-ops
+      - group: ${{ parameters.region }}-dev-axon-platform-ops
     jobs:
       - template: templates/terraform-validate.yml
         parameters:
+          region: ${{ parameters.region }}
           environment: dev
 
   - stage: plan_dev
-    displayName: "Plan (dev)"
+    displayName: "Plan (${{ parameters.region }}-dev)"
     dependsOn: terraform_validation
     variables:
-      - group: na-dev-axon-platform-ops
+      - group: ${{ parameters.region }}-dev-axon-platform-ops
     jobs:
       - template: templates/terraform-plan.yml
         parameters:
+          region: ${{ parameters.region }}
           environment: dev
-          region: na
           publish_binary_plan: false
 
   - stage: plan_qa
-    displayName: "Plan (qa)"
+    displayName: "Plan (${{ parameters.region }}-qa)"
     dependsOn: plan_dev
     variables:
-      - group: na-qa-axon-platform-ops
+      - group: ${{ parameters.region }}-qa-axon-platform-ops
     jobs:
       - template: templates/terraform-plan.yml
         parameters:
+          region: ${{ parameters.region }}
           environment: qa
-          region: na
           publish_binary_plan: false
 
   - stage: pr_comment
@@ -62,4 +73,4 @@ stages:
     jobs:
       - template: templates/pr-comment.yml
         parameters:
-          region: na
+          region: ${{ parameters.region }}

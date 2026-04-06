@@ -1,3 +1,13 @@
+variable "region" {
+  description = "Target region: na | apac | eu"
+  type        = string
+
+  validation {
+    condition     = contains(["na", "apac", "eu"], var.region)
+    error_message = "region must be one of: na, apac, eu"
+  }
+}
+
 variable "environment" {
   description = "Target environment: dev | qa | val | prod"
   type        = string
@@ -9,7 +19,7 @@ variable "environment" {
 }
 
 variable "secrets_json" {
-  description = "JSON string of secret values for this environment. Populated by pipeline via TF_VAR_secrets_json."
+  description = "JSON string of secret values. Populated by pipeline via TF_VAR_secrets_json."
   type        = string
   sensitive   = true
   default     = "{}"

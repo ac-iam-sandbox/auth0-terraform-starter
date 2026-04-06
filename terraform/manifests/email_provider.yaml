@@ -1,14 +1,23 @@
-# Auth0 email provider configuration
-
+# Auth0 email provider configuration.
+# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/email_provider
+#
+# Singleton resource — max 1 per tenant.
+# Provider: Amazon SES.
+#
+# Secrets injected via pipeline variable group through TF_VAR_secrets_json:
+#   SES_ACCESS_KEY_ID      → credentials.access_key_id
+#   SES_SECRET_ACCESS_KEY  → credentials.secret_access_key
+#
+# Env-specific values (default_from_address, region) in environments/{env}.yaml.
 email_provider:
   name: "ses"
   enabled: true
   default_from_address: "PLACEHOLDER_DEFAULT_FROM_ADDRESS"
 
-  # Non-secret SES config - region is env-specific, set in env YAML.
+  # Non-secret SES config — region is env-specific, set in env YAML.
   credentials_static: {}
 
-  # Secret fields - pipeline variable group names mapped to credential fields.
+  # Secret fields — pipeline variable group names mapped to credential fields.
   credentials_secrets:
     access_key_id: "SES_ACCESS_KEY_ID"
     secret_access_key: "SES_SECRET_ACCESS_KEY"

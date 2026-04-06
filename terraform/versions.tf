@@ -10,6 +10,6 @@ terraform {
   }
 
   # https://developer.hashicorp.com/terraform/language/backend/s3
-  # Partial config - completed via -backend-config flag at init.
+  # Partial config — completed via -backend-config flag at init.
   backend "s3" {}
 }

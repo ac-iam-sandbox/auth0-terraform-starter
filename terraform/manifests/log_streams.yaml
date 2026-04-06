@@ -1,8 +1,7 @@
 # Auth0 log stream definitions for platform ops.
 # https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/log_stream
 #
-# No log streams configured yet. Add entries as needed.
-# Example:
+# No log streams configured yet. Example with region filtering:
 #
 # log_streams:
 #   datadog-logs:
@@ -10,8 +9,20 @@
 #     type: "datadog"
 #     status: "active"
 #     environments: [dev, qa, val, prod]
+#     regions: [na, eu]                    # APAC uses a different sink
 #     sink_static:
 #       datadog_region: "us"
 #     sink_secrets:
 #       datadog_api_key: "DATADOG_API_KEY"
+#
+#   datadog-logs-apac:
+#     name: "Datadog Log Stream (APAC)"
+#     type: "datadog"
+#     status: "active"
+#     environments: [dev, qa, val, prod]
+#     regions: [apac]
+#     sink_static:
+#       datadog_region: "eu"              # APAC data residency
+#     sink_secrets:
+#       datadog_api_key: "DATADOG_API_KEY_APAC"
 log_streams: {}

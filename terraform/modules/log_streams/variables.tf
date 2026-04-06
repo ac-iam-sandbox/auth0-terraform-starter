@@ -11,6 +11,10 @@ variable "env_config" {
   type = any
 }
 
+variable "region" {
+  type = string
+}
+
 variable "environment" {
   type = string
 }

@@ -1,4 +1,8 @@
-# Guardian 
+# https://registry.terraform.io/providers/auth0/auth0/latest/docs/resources/guardian
+#
+# Singleton resource — configures MFA for the tenant.
+# Policy (Required): never, all-applications, confidence-score.
+# Supports: OTP, email, push, phone, recovery code, WebAuthn (platform + roaming), Duo.
 
 locals {
   def = var.definition
@@ -21,12 +25,12 @@ resource "auth0_guardian" "this" {
       dynamic "options" {
         for_each = lookup(phone.value, "options", null) != null ? [phone.value.options] : []
         content {
-          enrollment_message    = lookup(options.value, "enrollment_message", null)
-          verification_message  = lookup(options.value, "verification_message", null)
-          from                  = lookup(options.value, "from", null)
+          enrollment_message   = lookup(options.value, "enrollment_message", null)
+          verification_message = lookup(options.value, "verification_message", null)
+          from                 = lookup(options.value, "from", null)
           messaging_service_sid = lookup(options.value, "messaging_service_sid", null)
-          auth_token            = lookup(options.value, "auth_token", null)
-          sid                   = lookup(options.value, "sid", null)
+          auth_token           = lookup(options.value, "auth_token", null)
+          sid                  = lookup(options.value, "sid", null)
         }
       }
     }

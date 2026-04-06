@@ -1,0 +1,13 @@
+# EU qa environment configuration.
+
+tenant:
+  auth0_domain: "PLACEHOLDER_EU_QA_DOMAIN"
+  region: "eu"
+  friendly_name: "Axon CIC Platform EU (QA)"
+  support_email: "PLACEHOLDER_SUPPORT_EMAIL"
+  support_url: "PLACEHOLDER_SUPPORT_URL"
+
+email_provider:
+  default_from_address: "PLACEHOLDER_EU_QA_FROM_ADDRESS"
+  credentials:
+    region: "eu-west-1"
