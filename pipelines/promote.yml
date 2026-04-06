@@ -1,6 +1,7 @@
 # Manual trigger to promote to qa, val, or prod in any region.
 # Pipeline name in Azure DevOps: "Platform Ops - Promote"
 trigger: none
+pr: none
 
 parameters:
   - name: region

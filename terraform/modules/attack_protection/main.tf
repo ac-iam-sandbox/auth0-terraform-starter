@@ -6,7 +6,6 @@
 
 locals {
   def = var.definition
-  cfg = var.env_config
 }
 
 resource "auth0_attack_protection" "this" {

@@ -33,7 +33,6 @@ module "tenant" {
 module "attack_protection" {
   source     = "./modules/attack_protection"
   definition = local.attack_prot
-  env_config = lookup(local.region_config, "attack_protection", {})
 }
 
 # 3. Email provider (singleton)

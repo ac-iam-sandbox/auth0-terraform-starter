@@ -12,6 +12,8 @@ trigger:
     include:
       - terraform/**
 
+pr: none
+
 parameters:
   - name: region
     displayName: "Region"

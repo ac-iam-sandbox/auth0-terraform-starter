@@ -1,6 +1,7 @@
 # ONE-TIME import pipeline for bootstrapping existing Auth0 resources.
 # Pipeline name in Azure DevOps: "Platform Ops - Import (one-time)"
 trigger: none
+pr: none
 
 parameters:
   - name: region

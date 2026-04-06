@@ -9,9 +9,6 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 
-# Keep the lock file committed
-# !.terraform.lock.hcl
-
 # OS
 .DS_Store
 Thumbs.db
