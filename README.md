@@ -122,9 +122,9 @@ Each group needs: `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET` (mask
 
 | Pipeline | Trigger | Parameters |
 |---|---|---|
-| Platform Ops - Deploy Dev | Auto (merge to master) | `region` |
+| Platform Ops - Deploy Dev | Auto (merge to main) | `region` |
 | Platform Ops - Promote | Manual | `region` + `target_environment` |
-| Platform Ops - PR Validation | Auto (PR to master) | `region` |
+| Platform Ops - PR Validation | Auto (PR to main) | `region` |
 | Platform Ops - Import | Manual (one-time) | `region` + `environment` + resource IDs |
 
 ## Config vs. secrets

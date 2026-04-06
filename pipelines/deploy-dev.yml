@@ -1,4 +1,4 @@
-# Auto-triggers plan on merge to master. Apply requires approval.
+# Auto-triggers plan on merge to main. Apply requires approval.
 # Pipeline name in Azure DevOps: "Platform Ops - Deploy Dev"
 #
 # Runs for a single region. Create one pipeline instance per region,
@@ -7,7 +7,7 @@
 trigger:
   branches:
     include:
-      - master
+      - main
   paths:
     include:
       - terraform/**

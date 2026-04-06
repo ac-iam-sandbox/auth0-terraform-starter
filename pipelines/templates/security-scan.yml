@@ -27,7 +27,10 @@ jobs:
     displayName: "Terraform lint"
     steps:
       - script: |
-          curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+          TFLINT_VERSION="v0.53.0"
+          curl -sLo /tmp/tflint.zip "https://github.com/terraform-linters/tflint/releases/download/${TFLINT_VERSION}/tflint_linux_amd64.zip"
+          unzip -o /tmp/tflint.zip -d /usr/local/bin/
+          chmod +x /usr/local/bin/tflint
           cd $(Build.SourcesDirectory)/terraform
           tflint --init || true
           tflint --recursive --format compact

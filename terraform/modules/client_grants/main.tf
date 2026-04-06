@@ -14,9 +14,9 @@ locals {
 
   resolved_audience = {
     for k, v in local.active : k =>
-      lookup(v, "audience", null) == null || lookup(v, "audience", "") == "management_api"
-      ? var.management_api_identifier
-      : v.audience
+    lookup(v, "audience", null) == null || lookup(v, "audience", "") == "management_api"
+    ? var.management_api_identifier
+    : v.audience
   }
 }
 
