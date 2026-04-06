@@ -18,7 +18,7 @@ resource "auth0_tenant" "this" {
   default_directory       = lookup(local.cfg, "default_directory", lookup(local.def, "default_directory", null))
   default_redirection_uri = lookup(local.cfg, "default_redirection_uri", lookup(local.def, "default_redirection_uri", null))
   allowed_logout_urls     = lookup(local.cfg, "allowed_logout_urls", lookup(local.def, "allowed_logout_urls", null))
-  enabled_locales         = lookup(local.def, "enabled_locales", null)
+  enabled_locales         = lookup(local.cfg, "enabled_locales", lookup(local.def, "enabled_locales", null))
   sandbox_version         = lookup(local.def, "sandbox_version", null)
 
   # ── Session settings ──

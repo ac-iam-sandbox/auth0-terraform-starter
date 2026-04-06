@@ -3,6 +3,7 @@
 tenant:
   auth0_domain: "PLACEHOLDER_APAC_PROD_DOMAIN"
   region: "apac"
+  enabled_locales: ["en", "ja"]
   friendly_name: "Axon CIC Platform APAC"
   support_email: "PLACEHOLDER_SUPPORT_EMAIL"
   support_url: "PLACEHOLDER_SUPPORT_URL"
