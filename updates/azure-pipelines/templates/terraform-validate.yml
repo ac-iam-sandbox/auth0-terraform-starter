@@ -1,0 +1,25 @@
+parameters:
+  - name: environment
+    type: string
+
+jobs:
+  - job: validate
+    displayName: "Format & validate"
+    steps:
+      - template: terraform-init.yml
+        parameters:
+          environment: ${{ parameters.environment }}
+
+      - script: |
+          cd $(Build.SourcesDirectory)/terraform
+          terraform fmt -check -recursive -diff
+        displayName: "Terraform format check"
+
+      - script: |
+          cd $(Build.SourcesDirectory)/terraform
+          terraform validate
+        displayName: "Terraform validate"
+        env:
+          AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+          AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+          AWS_DEFAULT_REGION: $(AWS_DEFAULT_REGION)

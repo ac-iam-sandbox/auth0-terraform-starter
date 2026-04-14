@@ -32,18 +32,7 @@ module "action_modules" {
   environment = var.environment
 }
 
-# 3. Actions (depends on action_modules + forms)
-module "actions" {
-  source                = "./modules/actions"
-  definitions           = local.actions
-  secrets               = local.secrets
-  env_config            = lookup(local.env_config, "actions", {})
-  environment           = var.environment
-  action_module_outputs = module.action_modules.module_map
-  form_ids              = module.forms.form_map
-}
-
-# 4. Flows (depends on vault_connections)
+# 3. Flows (depends on vault_connections)
 module "flows" {
   source                   = "./modules/flows"
   definitions              = local.flows
@@ -52,12 +41,23 @@ module "flows" {
   vault_connection_outputs = module.vault_connections.connection_map
 }
 
-# 5. Forms (depends on flows)
+# 4. Forms (depends on flows)
 module "forms" {
   source       = "./modules/forms"
   definitions  = local.forms
   environment  = var.environment
   flow_outputs = module.flows.flow_map
+}
+
+# 5. Actions (depends on action_modules + forms)
+module "actions" {
+  source                = "./modules/actions"
+  definitions           = local.actions
+  secrets               = local.secrets
+  env_config            = lookup(local.env_config, "actions", {})
+  environment           = var.environment
+  action_module_outputs = module.action_modules.module_map
+  form_ids              = module.forms.form_map
 }
 
 # 6. Clients (independent)
