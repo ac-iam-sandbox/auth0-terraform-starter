@@ -2,13 +2,18 @@
 #
 # Environment config is loaded from manifests/environments/{env}.yaml.
 # Each module receives the full env_config and extracts its own section.
+#
+# Dependency chain:
+#   vault_connections → flows → forms ─┐
+#                    action_modules ────┤
+#                                       └─→ actions
 
 locals {
   env_config     = yamldecode(file("${path.module}/manifests/environments/${var.environment}.yaml"))
   clients        = yamldecode(file("${path.module}/manifests/clients.yaml"))["clients"]
   actions        = yamldecode(file("${path.module}/manifests/actions.yaml"))["actions"]
   action_modules = yamldecode(file("${path.module}/manifests/action_modules.yaml"))["action_modules"]
-  flows_manifest = yamldecode(file("${path.module}/manifests/flows.yaml"))
+  flows_manifest = yamldecode(file("${path.module}/manifests/forms-and-flows.yaml"))
   vault_conns    = local.flows_manifest["vault_connections"]
   flows          = local.flows_manifest["flows"]
   forms          = lookup(local.flows_manifest, "forms", {})
@@ -23,7 +28,7 @@ module "vault_connections" {
   environment = var.environment
 }
 
-# 2. Action modules
+# 2. Action modules (independent)
 module "action_modules" {
   source      = "./modules/action_modules"
   definitions = local.action_modules

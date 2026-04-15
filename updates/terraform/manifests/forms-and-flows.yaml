@@ -1,0 +1,99 @@
+# Auth0 Forms, Flows, and Vault Configuration
+
+# Vault Connections
+# Each vault connection's setup_config lists the required config keys for that connection type.
+vault_connections:
+  auth0-m2m:
+    app_id: "AUTH0"
+    name: "Auth0 M2M Connection"
+    environments: [dev, qa, val, prod]
+    setup_static:
+      type: "OAUTH_APP"
+    setup_config:
+      - "domain"
+      - "client_id"
+    setup_secrets:
+      client_secret: "VAULT_AUTH0_CLIENT_SECRET"
+
+# Flows
+# Conn refs replaced with Terraform-managed vault connection IDs.
+flows:
+  # Email Verification flows
+  ev-send-email-otp:
+    name: "Verify Email (OTP and Send Email)"
+    environments: [dev, qa, val, prod]
+    source_form: "email-verification"
+    source_key: "#FLOW-1#"
+
+  ev-verify-otp-update:
+    name: "Verify Email (Verify OTP and Update User)"
+    environments: [dev, qa, val, prod]
+    source_form: "email-verification"
+    source_key: "#FLOW-2#"
+    conn_refs:
+      - placeholder: "#CONN-1#"
+        vault_key: "auth0-m2m"
+
+  # Progressive Profiling flows
+  pp-update-user:
+    name: "Progressive Profiling (Update User)"
+    environments: [dev, qa, val, prod]
+    source_form: "progressive-profiling"
+    source_key: "#FLOW-1#"
+    conn_refs:
+      - placeholder: "#CONN-1#"
+        vault_key: "auth0-m2m"
+
+  pp-send-email-otp:
+    name: "Progressive Profiling (OTP and Send Email)"
+    environments: [dev, qa, val, prod]
+    source_form: "progressive-profiling"
+    source_key: "#FLOW-2#"
+
+  pp-verify-otp-update:
+    name: "Progressive Profiling (Verify OTP and Update User)"
+    environments: [dev, qa, val, prod]
+    source_form: "progressive-profiling"
+    source_key: "#FLOW-3#"
+    conn_refs:
+      - placeholder: "#CONN-1#"
+        vault_key: "auth0-m2m"
+
+# Forms
+# Each form's flow_refs list the flows that are part of that form, with placeholders for where those flows should be inserted in the form's JSON.
+forms:
+  email-verification:
+    name: "Email Verification"
+    environments: [dev, qa, val, prod]
+    code: "main.json"
+    primary_language: "en"
+    flow_refs:
+      - placeholder: "#FLOW-1#"
+        flow_key: "ev-send-email-otp"
+      - placeholder: "#FLOW-2#"
+        flow_key: "ev-verify-otp-update"
+
+  progressive-profiling:
+    name: "Progressive Profiling"
+    environments: [dev, qa, val, prod]
+    code: "main.json"
+    primary_language: "en"
+    flow_refs:
+      - placeholder: "#FLOW-1#"
+        flow_key: "pp-update-user"
+      - placeholder: "#FLOW-2#"
+        flow_key: "pp-send-email-otp"
+      - placeholder: "#FLOW-3#"
+        flow_key: "pp-verify-otp-update"
+
+  account-linking:
+    name: "Account Linking"
+    environments: [dev, qa, val, prod]
+    code: "main.json"
+    primary_language: "en"
+
+  post-account-linking:
+    name: "Post Account Linking"
+    environments: [dev, qa, val, prod]
+    code: "main.json"
+    primary_language: "en"

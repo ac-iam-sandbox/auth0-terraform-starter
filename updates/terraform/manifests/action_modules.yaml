@@ -1,0 +1,35 @@
+# Action Modules
+# Each module includes its name, publish status, target environments, code entry point, dependencies, and secrets configuration.
+# Pin the versions of your dependencies to ensure stability and security. Replace "PINME" with the actual version numbers you have verified.
+
+action_modules:
+  entry-path-verification:
+    name: "entry-path-verification"
+    publish: true
+    environments: [dev, qa, val, prod]
+    code: "main.js"
+    dependencies: {}
+    secrets_pipeline: []
+
+  account-linking:
+    name: "account-linking"
+    publish: true
+    environments: [dev, qa, val, prod]
+    code: "main.js"
+    dependencies:
+      auth0: "5.5.0"
+    secrets_config:
+      - "MANAGEMENT_API_DOMAIN"
+      - "MANAGEMENT_API_CLIENT_ID"
+    secrets_pipeline:
+      - "MANAGEMENT_API_CLIENT_SECRET"
+
+  signup-validation:
+    name: "signup-validation"
+    publish: true
+    environments: [dev, qa, val, prod]
+    code: "main.js"
+    dependencies:
+      joi: "18.1.2"
+      libphonenumber-js: "1.12.41"
+    secrets_pipeline: []

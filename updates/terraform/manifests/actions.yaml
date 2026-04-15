@@ -1,0 +1,141 @@
+# Auth0 Actions
+# This file defines the Auth0 Actions to be deployed across different environments.
+# Each action is associated with a specific trigger (e.g., pre-user-registration, post-login)
+# and includes details such as runtime, deployment settings, code location, dependencies, secrets configuration, and execution order.
+#
+# Form IDs are resolved automatically via form_refs — the forms module output is
+# passed into the actions module, so no manual ID copy-paste is needed per environment.
+# The form_key must match a key under "forms:" in forms-and-flows.yaml.
+
+actions:
+  # Pre User Registration Trigger
+  enrich-signup-profile:
+    name: "Enrich Signup Profile"
+    trigger: "pre-user-registration"
+    trigger_version: "v2"
+    runtime: "node22"
+    deploy: true
+    order: 1
+    environments: [dev, qa]
+    code: "main.js"
+    dependencies: {}
+    secrets_config:
+      - "API_BASE_URL"
+    secrets_pipeline: []
+    form_refs: []
+    modules:
+      - module_key: "entry-path-verification"
+      - module_key: "signup-validation"
+
+  # Post Login Trigger
+  enforce-email-verification:
+    name: "Enforce Email Verification"
+    trigger: "post-login"
+    trigger_version: "v3"
+    runtime: "node22"
+    deploy: true
+    order: 1
+    environments: [dev, qa]
+    code: "main.js"
+    dependencies: {}
+    secrets_config: []
+    secrets_pipeline: []
+    form_refs:
+      - secret_name: "FORM_ID"
+        form_key: "email-verification"
+
+  complete-social-profile:
+    name: "Complete Social Profile"
+    trigger: "post-login"
+    trigger_version: "v3"
+    runtime: "node22"
+    deploy: true
+    order: 2
+    environments: [dev, qa]
+    code: "main.js"
+    dependencies: {}
+    secrets_config:
+      - "API_BASE_URL"
+      - "LOGOUT_URI"
+    secrets_pipeline: []
+    form_refs:
+      - secret_name: "PROFILE_FORM_ID"
+        form_key: "progressive-profiling"
+      - secret_name: "LINKING_FORM_ID"
+        form_key: "account-linking"
+    modules:
+      - module_key: "account-linking"
+      - module_key: "entry-path-verification"
+      - module_key: "signup-validation"
+
+  link-accounts:
+    name: "Link Accounts"
+    trigger: "post-login"
+    trigger_version: "v3"
+    runtime: "node22"
+    deploy: true
+    order: 3
+    environments: [dev, qa]
+    code: "main.js"
+    dependencies: {}
+    secrets_config:
+      - "LOGOUT_URI"
+    secrets_pipeline: []
+    form_refs:
+      - secret_name: "LINKING_FORM_ID"
+        form_key: "account-linking"
+    modules:
+      - module_key: "account-linking"
+
+  post-account-linking:
+    name: "Post Account Linking"
+    trigger: "post-login"
+    trigger_version: "v3"
+    runtime: "node22"
+    deploy: true
+    order: 4
+    environments: [dev, qa]
+    code: "main.js"
+    dependencies: {}
+    secrets_config: []
+    secrets_pipeline: []
+    form_refs:
+      - secret_name: "LINKING_SUCCESS_FORM_ID"
+        form_key: "post-account-linking"
+
+  token-enrichment:
+    name: "Token Enrichment"
+    trigger: "post-login"
+    trigger_version: "v3"
+    runtime: "node22"
+    deploy: true
+    order: 5
+    environments: [dev, qa]
+    code: "main.js"
+    dependencies: {}
+    secrets_config: []
+    secrets_pipeline: []
+    form_refs: []
+
+  # Post Change Password Trigger
+  post-change-password-email:
+    name: "Post Change Password Email"
+    trigger: "post-change-password"
+    trigger_version: "v2"
+    runtime: "node22"
+    deploy: true
+    order: 1
+    environments: [dev, qa]
+    code: "main.js"
+    dependencies:
+      auth0: "5.6.0"
+      "@aws-sdk/client-ses": "3.1027.0"
+    secrets_config:
+      - "MANAGEMENT_API_DOMAIN"
+      - "MANAGEMENT_API_CLIENT_ID"
+      - "SES_AWS_REGION"
+      - "SES_AWS_ACCESS_KEY_ID"
+    secrets_pipeline:
+      - "MANAGEMENT_API_CLIENT_SECRET"
+      - "SES_AWS_SECRET_ACCESS_KEY"
+    form_refs: []
