@@ -1,0 +1,35 @@
+# Auth0 email provider — custom provider with SES backend.
+#
+# Migration from SES to custom (two-step):
+#   Step 1: Keep name: "ses" — deploys client + grant + action without switching email routing
+#   Step 2: Change name to "custom" — switches Auth0 to route emails through the action
+#
+# To revert: change name back to "ses" and restore credentials_static/credentials_secrets blocks.
+
+email_provider:
+  name: "custom"
+  enabled: true
+  default_from_address: "PLACEHOLDER_DEFAULT_FROM_ADDRESS"
+
+  # Action configuration (only used when name="custom")
+  action:
+    name: "Custom Email Provider"
+    runtime: "node22"
+    code: "main.js"
+    dependencies:
+      "@aws-sdk/client-sesv2": "3.1027.0"
+    # Per-env values from environment YAML (under email_provider.action)
+    secrets_config:
+      - "AUTH0_DOMAIN"
+      - "AWS_REGION"
+    # Sensitive values from pipeline variable group (TF_VAR_secrets_json)
+    secrets_pipeline:
+      - "AWS_ACCESS_KEY_ID"
+      - "AWS_SECRET_ACCESS_KEY"
+    # Auto-resolved from clients module output
+    client_refs:
+      - secret_name: "AUTH0_CLIENT_ID"
+        client_key: "custom-email-provider-service"
+      - secret_name: "AUTH0_CLIENT_SECRET"
+        client_key: "custom-email-provider-service"
+        credential: "secret"

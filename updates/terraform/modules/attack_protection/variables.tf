@@ -1,0 +1,3 @@
+variable "definition" {
+  type = any
+}

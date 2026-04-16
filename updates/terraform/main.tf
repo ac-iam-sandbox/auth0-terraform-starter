@@ -1,74 +1,83 @@
-# Root module - composes child modules in dependency order.
-#
-# Environment config is loaded from manifests/environments/{env}.yaml.
-# Each module receives the full env_config and extracts its own section.
+# Root module
 #
 # Dependency chain:
-#   vault_connections → flows → forms ─┐
-#                    action_modules ────┤
-#                                       └─→ actions
+#   clients → client_grants → email_provider (action needs client + grant)
+#   tenant, attack_protection, guardian, log_streams (independent singletons)
 
 locals {
-  env_config     = yamldecode(file("${path.module}/manifests/environments/${var.environment}.yaml"))
+  region_config  = yamldecode(file("${path.module}/manifests/regions/${var.region}/${var.environment}.yaml"))
   clients        = yamldecode(file("${path.module}/manifests/clients.yaml"))["clients"]
-  actions        = yamldecode(file("${path.module}/manifests/actions.yaml"))["actions"]
-  action_modules = yamldecode(file("${path.module}/manifests/action_modules.yaml"))["action_modules"]
-  flows_manifest = yamldecode(file("${path.module}/manifests/forms-and-flows.yaml"))
-  vault_conns    = local.flows_manifest["vault_connections"]
-  flows          = local.flows_manifest["flows"]
-  forms          = lookup(local.flows_manifest, "forms", {})
+  client_grants  = yamldecode(file("${path.module}/manifests/client_grants.yaml"))["client_grants"]
+  log_streams    = yamldecode(file("${path.module}/manifests/log_streams.yaml"))["log_streams"]
+  attack_prot    = yamldecode(file("${path.module}/manifests/attack_protection.yaml"))["attack_protection"]
+  email_provider = yamldecode(file("${path.module}/manifests/email_provider.yaml"))["email_provider"]
+  guardian       = yamldecode(file("${path.module}/manifests/guardian.yaml"))["guardian"]
+  tenant         = yamldecode(file("${path.module}/manifests/tenant.yaml"))["tenant"]
 }
 
-# 1. Vault connections
-module "vault_connections" {
-  source      = "./modules/vault_connections"
-  definitions = local.vault_conns
-  secrets     = local.secrets
-  env_config  = lookup(local.env_config, "vault_connections", {})
-  environment = var.environment
+# ── Data source: resolve the tenant's Management API identifier automatically ──
+data "auth0_tenant" "current" {}
+
+# 1. Tenant settings (singleton)
+module "tenant" {
+  source     = "./modules/tenant"
+  definition = local.tenant
+  env_config = lookup(local.region_config, "tenant", {})
 }
 
-# 2. Action modules (independent)
-module "action_modules" {
-  source      = "./modules/action_modules"
-  definitions = local.action_modules
-  secrets     = local.secrets
-  env_config  = lookup(local.env_config, "action_modules", {})
-  environment = var.environment
+# 2. Attack protection (singleton)
+module "attack_protection" {
+  source     = "./modules/attack_protection"
+  definition = local.attack_prot
 }
 
-# 3. Flows (depends on vault_connections)
-module "flows" {
-  source                   = "./modules/flows"
-  definitions              = local.flows
-  forms_manifest           = local.forms
-  environment              = var.environment
-  vault_connection_outputs = module.vault_connections.connection_map
+# 3. Guardian MFA (singleton)
+module "guardian" {
+  source     = "./modules/guardian"
+  definition = local.guardian
+  env_config = lookup(local.region_config, "guardian", {})
 }
 
-# 4. Forms (depends on flows)
-module "forms" {
-  source       = "./modules/forms"
-  definitions  = local.forms
-  environment  = var.environment
-  flow_outputs = module.flows.flow_map
-}
-
-# 5. Actions (depends on action_modules + forms)
-module "actions" {
-  source                = "./modules/actions"
-  definitions           = local.actions
-  secrets               = local.secrets
-  env_config            = lookup(local.env_config, "actions", {})
-  environment           = var.environment
-  action_module_outputs = module.action_modules.module_map
-  form_ids              = module.forms.form_map
-}
-
-# 6. Clients (independent)
+# 4. M2M Clients (multi-instance, region+env filtered)
 module "clients" {
   source      = "./modules/clients"
   definitions = local.clients
-  env_config  = lookup(local.env_config, "clients", {})
+  region      = var.region
+  environment = var.environment
+}
+
+# 5. Client grants (depends on clients)
+module "client_grants" {
+  source                    = "./modules/client_grants"
+  definitions               = local.client_grants
+  region                    = var.region
+  environment               = var.environment
+  client_ids                = module.clients.client_map
+  management_api_identifier = data.auth0_tenant.current.management_api_identifier
+}
+
+# 6. Email provider (depends on clients + client_grants)
+#    When name="custom", creates an auth0_action as a prerequisite.
+#    The action's client_refs resolve client_id and client_secret
+#    from module.clients (via expose_credentials).
+module "email_provider" {
+  source         = "./modules/email_provider"
+  definition     = local.email_provider
+  secrets        = local.secrets
+  env_config     = lookup(local.region_config, "email_provider", {})
+  environment    = var.environment
+  client_ids     = module.clients.client_map
+  client_secrets = module.clients.client_secret_map
+
+  depends_on = [module.client_grants]
+}
+
+# 7. Log streams (multi-instance, region+env filtered)
+module "log_streams" {
+  source      = "./modules/log_streams"
+  definitions = local.log_streams
+  secrets     = local.secrets
+  env_config  = lookup(local.region_config, "log_streams", {})
+  region      = var.region
   environment = var.environment
 }

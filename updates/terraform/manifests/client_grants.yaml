@@ -1,0 +1,55 @@
+# Auth0 client grants
+client_grants:
+  branded-ui-service-mgmt-api:
+    client_key: "branded-ui-service"
+    environments: [dev, qa, val, prod]
+    scopes:
+      - "read:prompts"
+      - "update:prompts"
+      - "read:branding"
+      - "update:branding"
+      - "delete:branding"
+      - "read:clients"
+      - "update:clients"
+      - "read:client_grants"
+
+  auth0-actions-service-mgmt-api:
+    client_key: "auth0-actions-service"
+    environments: [dev, qa, val, prod]
+    scopes:
+      - "read:users"
+      - "update:users"
+      - "read:users_app_metadata"
+      - "update:users_app_metadata"
+
+  auth0-vault-service-mgmt-api:
+    client_key: "auth0-vault-service"
+    environments: [dev, qa, val, prod]
+    scopes:
+      - "read:users"
+      - "update:users"
+      - "read:users_app_metadata"
+      - "update:users_app_metadata"
+      - "read:email_provider"
+      - "create:users_app_metadata"
+
+  email-template-service-mgmt-api:
+    client_key: "email-template-service"
+    environments: [dev, qa, val, prod]
+    scopes:
+      - "read:email_templates"
+      - "create:email_templates"
+      - "update:email_templates"
+
+  mulesoft-service-mgmt-api:
+    client_key: "mulesoft-service"
+    environments: [dev, qa, val, prod]
+    scopes:
+      - "update:users"
+      - "create:user_tickets"
+
+  custom-email-provider-mgmt-api:
+    client_key: "custom-email-provider-service"
+    environments: [dev, qa, val, prod]
+    scopes:
+      - "create:user_tickets"

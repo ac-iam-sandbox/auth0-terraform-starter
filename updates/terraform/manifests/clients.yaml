@@ -1,0 +1,50 @@
+# Auth0 M2M clients
+clients:
+  branded-ui-service:
+    name: "Manage Branding Service | Terraform Managed"
+    description: "M2M app for external management of branding, universal login, and UI customization"
+    environments: [dev, qa, val, prod]
+    oidc_conformant: true
+    is_first_party: true
+    jwt_alg: "RS256"
+
+  auth0-actions-service:
+    name: "Auth0 Actions Service | Terraform Managed"
+    description: "M2M app for action-based user lookups and account linking"
+    environments: [dev, qa, val, prod]
+    oidc_conformant: true
+    is_first_party: true
+    jwt_alg: "RS256"
+
+  auth0-vault-service:
+    name: "Auth0 Vault Service | Terraform Managed"
+    description: "M2M app for vault connections - email provider config, user password and profile updates"
+    environments: [dev, qa, val, prod]
+    oidc_conformant: true
+    is_first_party: true
+    jwt_alg: "RS256"
+
+  email-template-service:
+    name: "Email Template Service | Terraform Managed"
+    description: "M2M app for managing email templates"
+    environments: [dev, qa, val, prod]
+    oidc_conformant: true
+    is_first_party: true
+    jwt_alg: "RS256"
+
+  mulesoft-service:
+    name: "MuleSoft Service | Terraform Managed"
+    description: "M2M app for proxying Management API calls from MuleSoft for user updates"
+    environments: [dev, qa, val, prod]
+    oidc_conformant: true
+    is_first_party: true
+    jwt_alg: "RS256"
+
+  custom-email-provider-service:
+    name: "Custom Email Provider Service | Terraform Managed"
+    description: "M2M app for custom email provider — change password tickets via Management API"
+    environments: [dev, qa, val, prod]
+    oidc_conformant: true
+    is_first_party: true
+    jwt_alg: "RS256"
+    expose_credentials: true
