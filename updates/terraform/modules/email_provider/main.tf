@@ -1,11 +1,15 @@
 # Email provider
 #
 # When name="custom", an auth0_action with the custom-email-provider trigger
-# is created as a prerequisite. The action's secrets are resolved from three
-# sources (same pattern as CIAM actions module):
-#   1. secrets_config  — per-env values from env YAML (domain, region)
-#   2. secrets_pipeline — sensitive values from TF_VAR_secrets_json (API keys)
-#   3. client_refs      — auto-resolved client IDs/secrets from the clients module
+# is created as a prerequisite. The action's secrets are resolved from:
+#   1. tenant_domain   — auto-injected as AUTH0_DOMAIN (no env YAML needed)
+#   2. secrets_config  — per-env values from env YAML (e.g. AWS_REGION)
+#   3. secrets_pipeline — map of action_secret_name → pipeline_var_name
+#   4. client_refs      — auto-resolved client IDs/secrets from the clients module
+#
+# When name="ses" (or any other provider), the action is not created and
+# credentials are resolved from credentials_static, credentials_secrets,
+# and env YAML as before.
 
 locals {
   def        = var.definition
@@ -27,14 +31,19 @@ locals {
   action_env_config = lookup(local.cfg, "action", {})
 
   action_secrets = local.is_custom ? merge(
+    # Auto-inject tenant domain — eliminates AUTH0_DOMAIN duplication in env YAMLs
+    var.tenant_domain != "" ? { "AUTH0_DOMAIN" = var.tenant_domain } : {},
+    # Per-env config values (e.g. AWS_REGION from env YAML)
     {
       for name in lookup(local.action_def, "secrets_config", []) :
       name => local.action_env_config[name]
     },
+    # Pipeline secrets — map allows renaming (e.g. AWS_ACCESS_KEY_ID → SES_AWS_ACCESS_KEY_ID)
     {
-      for name in lookup(local.action_def, "secrets_pipeline", []) :
-      name => var.secrets[name]
+      for secret_name, var_name in lookup(local.action_def, "secrets_pipeline", {}) :
+      secret_name => var.secrets[var_name]
     },
+    # Client refs — auto-resolved from clients module output
     {
       for ref in lookup(local.action_def, "client_refs", []) :
       ref.secret_name => (
@@ -76,9 +85,8 @@ resource "auth0_action" "email_provider" {
     }
   }
 
-  lifecycle {
-    prevent_destroy = true
-  }
+  # No prevent_destroy — if reverting from custom to SES,
+  # count drops to 0 and this action must be destroyable.
 }
 
 # ── Email provider ──

@@ -9,7 +9,6 @@ locals {
     )
   }
 
-  # Clients that need their credentials managed and exposed to other modules.
   credential_clients = {
     for k, v in local.active_clients : k => v
     if lookup(v, "expose_credentials", false)
@@ -51,8 +50,6 @@ resource "auth0_client" "this" {
   }
 }
 
-# Manage credentials for clients that need their secret exposed (e.g. custom email provider).
-# This resource reads the auto-generated client_secret so it can be passed to other modules.
 resource "auth0_client_credentials" "this" {
   for_each = local.credential_clients
 

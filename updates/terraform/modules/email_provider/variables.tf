@@ -11,8 +11,10 @@ variable "env_config" {
   type = any
 }
 
-variable "environment" {
-  type = string
+variable "tenant_domain" {
+  description = "Auth0 tenant domain — auto-injected as AUTH0_DOMAIN action secret"
+  type        = string
+  default     = ""
 }
 
 variable "client_ids" {

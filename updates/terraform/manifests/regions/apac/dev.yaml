@@ -1,0 +1,14 @@
+# APAC dev environment configuration.
+
+tenant:
+  enabled_locales: ["en", "ja"]
+  friendly_name: "Axon CIC Platform APAC (Dev)"
+  support_email: "myalconidsupport@alcon.com"
+  support_url: "https://www.alcon.com/contact-us"
+
+email_provider:
+  default_from_address: "MyAlcon Id-Dev <noreply-id@myalcon.com>"
+  # Action config — AUTH0_DOMAIN is auto-injected from data.auth0_tenant,
+  # no need to repeat it here.
+  action:
+    AWS_REGION: "us-east-1"

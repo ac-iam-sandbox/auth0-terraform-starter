@@ -44,15 +44,13 @@ async function createPasswordChangeTicket(domain, token, userId) {
   if (!res.ok) throw new Error(`Ticket creation failed: ${res.status}`);
 
   const data = await res.json();
-  return data.ticket; // the password-change URL
+  return data.ticket;
 }
 
 exports.onExecuteCustomEmailProvider = async (event, api) => {
   let html = event.notification.html;
   let text = event.notification.text;
 
-  // For blocked-account emails, generate a password change ticket
-  // and inject it into the rendered template
   if (event.notification.message_type === "blocked_account") {
     try {
       const token = await getManagementToken(
@@ -70,7 +68,6 @@ exports.onExecuteCustomEmailProvider = async (event, api) => {
       html = html.replace("%%CHANGE_PASSWORD_URL%%", ticketUrl);
       text = text.replace("%%CHANGE_PASSWORD_URL%%", ticketUrl);
     } catch (err) {
-      // If ticket generation fails, retry so the user isn't left without the link
       api.notification.retry(
         `Failed to create password change ticket: ${err.message}`.slice(0, 1024)
       );
@@ -78,7 +75,6 @@ exports.onExecuteCustomEmailProvider = async (event, api) => {
     }
   }
 
-  // Send via SES
   const ses = new SESv2Client({
     region: event.secrets.AWS_REGION,
     credentials: {

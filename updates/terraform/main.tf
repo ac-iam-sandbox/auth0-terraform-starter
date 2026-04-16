@@ -58,14 +58,14 @@ module "client_grants" {
 
 # 6. Email provider (depends on clients + client_grants)
 #    When name="custom", creates an auth0_action as a prerequisite.
-#    The action's client_refs resolve client_id and client_secret
-#    from module.clients (via expose_credentials).
+#    AUTH0_DOMAIN is auto-injected from tenant — no env YAML duplication.
+#    AUTH0_CLIENT_ID and AUTH0_CLIENT_SECRET resolved via client_refs.
 module "email_provider" {
   source         = "./modules/email_provider"
   definition     = local.email_provider
   secrets        = local.secrets
   env_config     = lookup(local.region_config, "email_provider", {})
-  environment    = var.environment
+  tenant_domain  = data.auth0_tenant.current.domain
   client_ids     = module.clients.client_map
   client_secrets = module.clients.client_secret_map
 

@@ -1,0 +1,6 @@
+# Auth0 Guardian MFA configuration
+guardian:
+  policy: "never"
+  otp: true
+  email: true
+  recovery_code: false
